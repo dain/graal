@@ -42,24 +42,22 @@ public final class TimerImpl extends DebugValue implements DebugTimer {
      */
     private static ThreadLocal<AbstractTimer> currentTimer = new ThreadLocal<>();
 
-    private boolean conditional;
+    private final DebugValue flat;
 
     public TimerImpl(String name, boolean conditional) {
-        super(name);
-        this.conditional = conditional;
-    }
+        super(name + "_Accm", conditional);
+        this.flat = new DebugValue(name + "_Flat", conditional) {
 
-    public void setConditional(boolean flag) {
-        conditional = flag;
-    }
-
-    public boolean isConditional() {
-        return conditional;
+            @Override
+            public String toString(long value) {
+                return valueToString(value);
+            }
+        };
     }
 
     @Override
     public TimerCloseable start() {
-        if (Debug.isTimeEnabled()) {
+        if (!isConditional() || Debug.isTimeEnabled()) {
             long startTime;
             if (threadMXBean.isCurrentThreadCpuTimeSupported()) {
                 startTime = threadMXBean.getCurrentThreadCpuTime();
@@ -80,9 +78,13 @@ public final class TimerImpl extends DebugValue implements DebugTimer {
         }
     }
 
+    public static String valueToString(long value) {
+        return String.format("%d.%d ms", value / 1000000, (value / 100000) % 10);
+    }
+
     @Override
     public String toString(long value) {
-        return String.format("%d.%d ms", value / 1000000, (value / 100000) % 10);
+        return valueToString(value);
     }
 
     private abstract class AbstractTimer implements TimerCloseable {
@@ -105,7 +107,8 @@ public final class TimerImpl extends DebugValue implements DebugTimer {
             }
             currentTimer.set(parent);
             long flatTime = timeSpan - nestedTimeToSubtract;
-            TimerImpl.this.addToCurrentValue(flatTime);
+            TimerImpl.this.addToCurrentValue(timeSpan);
+            flat.addToCurrentValue(flatTime);
         }
 
         protected abstract long currentTime();
