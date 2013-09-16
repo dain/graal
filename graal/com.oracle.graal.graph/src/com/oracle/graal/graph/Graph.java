@@ -83,7 +83,7 @@ public class Graph {
             if (obj instanceof CacheEntry) {
                 CacheEntry other = (CacheEntry) obj;
                 NodeClass nodeClass = node.getNodeClass();
-                if (other.node.getNodeClass() == nodeClass) {
+                if (other.node.getClass() == node.getClass()) {
                     return nodeClass.valueEqual(node, other.node);
                 }
             }
@@ -188,8 +188,7 @@ public class Graph {
      */
     public Graph copy(String newName) {
         Graph copy = new Graph(newName);
-        Map<Node, Node> emptyMap = Collections.emptyMap();
-        copy.addDuplicates(getNodes(), emptyMap);
+        copy.addDuplicates(getNodes(), (Map<Node, Node>) null);
         return copy;
     }
 
@@ -344,7 +343,7 @@ public class Graph {
             }
             if (minCountNode != null) {
                 for (Node usage : minCountNode.usages()) {
-                    if (usage != node && nodeClass == usage.getNodeClass() && nodeClass.valueEqual(node, usage) && node.getNodeClass().edgesEqual(node, usage)) {
+                    if (usage != node && nodeClass == usage.getNodeClass() && nodeClass.valueEqual(node, usage) && nodeClass.edgesEqual(node, usage)) {
                         return usage;
                     }
                 }
@@ -744,19 +743,8 @@ public class Graph {
 
     }
 
-    private static final DuplicationReplacement NO_REPLACEMENT = new DuplicationReplacement() {
-
-        @Override
-        public Node replacement(Node original) {
-            return original;
-        }
-    };
-
     @SuppressWarnings("all")
     public Map<Node, Node> addDuplicates(Iterable<Node> newNodes, DuplicationReplacement replacements) {
-        if (replacements == null) {
-            replacements = NO_REPLACEMENT;
-        }
         return NodeClass.addGraphDuplicate(this, newNodes, replacements);
     }
 }
