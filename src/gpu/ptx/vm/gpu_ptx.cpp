@@ -228,15 +228,20 @@ void *gpu::Ptx::generate_kernel(unsigned char *code, int code_len, const char *n
 }
 
 bool gpu::Ptx::execute_kernel(address kernel, PTXKernelArguments &ptxka, JavaValue &ret) {
+    return gpu::Ptx::execute_warp(1, 1, 1, kernel, ptxka, ret);
+}
+
+bool gpu::Ptx::execute_warp(int dimX, int dimY, int dimZ,
+                            address kernel, PTXKernelArguments &ptxka, JavaValue &ret) {
   // grid dimensionality
   unsigned int gridX = 1;
   unsigned int gridY = 1;
   unsigned int gridZ = 1;
 
   // thread dimensionality
-  unsigned int blockX = 1;
-  unsigned int blockY = 1;
-  unsigned int blockZ = 1;
+  unsigned int blockX = dimX;
+  unsigned int blockY = dimY;
+  unsigned int blockZ = dimZ;
 
   struct CUfunc_st* cu_function = (struct CUfunc_st*) kernel;
 
@@ -264,7 +269,7 @@ bool gpu::Ptx::execute_kernel(address kernel, PTXKernelArguments &ptxka, JavaVal
   }
 
   if (TraceGPUInteraction) {
-    tty->print_cr("[CUDA] Success: Kernel Launch");
+    tty->print_cr("[CUDA] Success: Kernel Launch: X: %d Y: %d Z: %d", blockX, blockY, blockZ);
   }
 
   status = _cuda_cu_ctx_synchronize();
@@ -282,7 +287,7 @@ bool gpu::Ptx::execute_kernel(address kernel, PTXKernelArguments &ptxka, JavaVal
   // Get the result. TODO: Move this code to get_return_oop()
   BasicType return_type = ptxka.get_ret_type();
   switch (return_type) {
-     case T_INT :
+     case T_INT:
        {
          int return_val;
          status = gpu::Ptx::_cuda_cu_memcpy_dtoh(&return_val, ptxka._return_value_ptr, T_INT_BYTE_SIZE);
@@ -293,7 +298,7 @@ bool gpu::Ptx::execute_kernel(address kernel, PTXKernelArguments &ptxka, JavaVal
          ret.set_jint(return_val);
        }
        break;
-     case T_LONG :
+     case T_LONG:
        {
          long return_val;
          status = gpu::Ptx::_cuda_cu_memcpy_dtoh(&return_val, ptxka._return_value_ptr, T_LONG_BYTE_SIZE);
@@ -304,10 +309,14 @@ bool gpu::Ptx::execute_kernel(address kernel, PTXKernelArguments &ptxka, JavaVal
          ret.set_jlong(return_val);
        }
        break;
+     case T_VOID:
+       break;
      default:
-       tty->print_cr("[CUDA] TODO *** Unhandled return type");
+       tty->print_cr("[CUDA] TODO *** Unhandled return type: %d", return_type);
   }
 
+  // handle post-invocation object and array arguemtn
+  ptxka.reiterate();
 
   // Free device memory allocated for result
   status = gpu::Ptx::_cuda_cu_memfree(ptxka._return_value_ptr);
