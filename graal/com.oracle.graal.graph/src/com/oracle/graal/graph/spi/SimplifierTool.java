@@ -20,17 +20,16 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.nodes.spi;
+package com.oracle.graal.graph.spi;
 
 import com.oracle.graal.graph.*;
-import com.oracle.graal.nodes.*;
 
 /**
  * @see Simplifiable
  */
 public interface SimplifierTool extends CanonicalizerTool {
 
-    void deleteBranch(FixedNode branch);
+    void deleteBranch(Node branch);
 
     /**
      * Adds a node to the worklist independent of whether it has already been on the worklist.
