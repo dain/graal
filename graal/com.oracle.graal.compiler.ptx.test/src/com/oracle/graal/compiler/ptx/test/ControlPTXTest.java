@@ -36,7 +36,7 @@ public class ControlPTXTest extends PTXTestBase {
         } else {
             printReport("testLoop: no VALUE");
         }
-        ret =  (Integer) invoke(compile("testSwitchDefault1I"), 3);
+        ret = (Integer) invoke(compile("testSwitchDefault1I"), 3);
         if (ret != null) {
             printReport("testSwitchDefault1I: " + ret);
         } else {
@@ -96,7 +96,7 @@ public class ControlPTXTest extends PTXTestBase {
     }
 
     public static int testIfElse2I(int c, int y) {
-        if  (c > 19) {
+        if (c > 19) {
             return 'M';    // millenial
         } else if (y > 84) {
             return 'Y';    // young

@@ -58,7 +58,8 @@ public class PTXControlFlow {
 
     public static class ReturnNoValOp extends PTXLIRInstruction {
 
-        public ReturnNoValOp() { }
+        public ReturnNoValOp() {
+        }
 
         @Override
         public void emitCode(TargetMethodAssembler tasm, PTXAssembler masm) {
@@ -106,9 +107,7 @@ public class PTXControlFlow {
         private final Condition condition;
         private final int predicate;
 
-        public CondMoveOp(Variable result, Condition condition,
-                          Variable trueValue, Value falseValue,
-                          int predicateRegister) {
+        public CondMoveOp(Variable result, Condition condition, Variable trueValue, Value falseValue, int predicateRegister) {
             this.result = result;
             this.condition = condition;
             this.trueValue = trueValue;
@@ -118,8 +117,7 @@ public class PTXControlFlow {
 
         @Override
         public void emitCode(TargetMethodAssembler tasm, PTXAssembler masm) {
-            cmove(tasm, masm, result, false, condition, false,
-                  trueValue, falseValue, predicate);
+            cmove(tasm, masm, result, false, condition, false, trueValue, falseValue, predicate);
         }
     }
 
@@ -132,10 +130,7 @@ public class PTXControlFlow {
         private final boolean unorderedIsTrue;
         private final int predicate;
 
-        public FloatCondMoveOp(Variable result, Condition condition,
-                               boolean unorderedIsTrue,
-                               Variable trueValue, Variable falseValue,
-                               int predicateRegister) {
+        public FloatCondMoveOp(Variable result, Condition condition, boolean unorderedIsTrue, Variable trueValue, Variable falseValue, int predicateRegister) {
             this.result = result;
             this.condition = condition;
             this.unorderedIsTrue = unorderedIsTrue;
@@ -146,16 +141,12 @@ public class PTXControlFlow {
 
         @Override
         public void emitCode(TargetMethodAssembler tasm, PTXAssembler masm) {
-            cmove(tasm, masm, result, true, condition, unorderedIsTrue,
-                  trueValue, falseValue, predicate);
+            cmove(tasm, masm, result, true, condition, unorderedIsTrue, trueValue, falseValue, predicate);
         }
     }
 
-    private static void cmove(TargetMethodAssembler tasm, PTXAssembler asm,
-                              Value result, boolean isFloat, Condition condition,
-                              boolean unorderedIsTrue,
-                              Value trueValue, Value falseValue,
-                              int predicateRegister) {
+    private static void cmove(TargetMethodAssembler tasm, PTXAssembler asm, Value result, boolean isFloat, Condition condition, boolean unorderedIsTrue, Value trueValue, Value falseValue,
+                    int predicateRegister) {
         // check that we don't overwrite an input operand before it is used.
         assert !result.equals(trueValue);
 
@@ -186,12 +177,9 @@ public class PTXControlFlow {
         }
     }
 
-    private static void cmove(PTXAssembler asm,
-                              Value result, Value other,
-                              int predicateRegister) {
+    private static void cmove(PTXAssembler asm, Value result, Value other, int predicateRegister) {
         if (isVariable(other)) {
-            assert !asVariable(other).equals(asVariable(result)) :
-                "other already overwritten by previous move";
+            assert !asVariable(other).equals(asVariable(result)) : "other already overwritten by previous move";
 
             switch (other.getKind()) {
                 case Int:
@@ -218,9 +206,7 @@ public class PTXControlFlow {
         // Number of predicate register that would be set by this instruction.
         protected int predRegNum;
 
-        public SequentialSwitchOp(Constant[] keyConstants,
-                                  LabelRef[] keyTargets, LabelRef defaultTarget,
-                                  Value key, Value scratch, int predReg) {
+        public SequentialSwitchOp(Constant[] keyConstants, LabelRef[] keyTargets, LabelRef defaultTarget, Value key, Value scratch, int predReg) {
             assert keyConstants.length == keyTargets.length;
             this.keyConstants = keyConstants;
             this.keyTargets = keyTargets;
@@ -279,9 +265,7 @@ public class PTXControlFlow {
         // Number of predicate register that would be set by this instruction.
         protected int predRegNum;
 
-        public TableSwitchOp(final int lowKey, final LabelRef defaultTarget,
-                             final LabelRef[] targets,
-                             Variable index, Variable scratch, int predReg) {
+        public TableSwitchOp(final int lowKey, final LabelRef defaultTarget, final LabelRef[] targets, Variable index, Variable scratch, int predReg) {
             this.lowKey = lowKey;
             this.defaultTarget = defaultTarget;
             this.targets = targets;
@@ -292,15 +276,12 @@ public class PTXControlFlow {
 
         @Override
         public void emitCode(TargetMethodAssembler tasm, PTXAssembler masm) {
-            tableswitch(tasm, masm, lowKey, defaultTarget, targets,
-                        index, scratch, predRegNum);
+            tableswitch(tasm, masm, lowKey, defaultTarget, targets, index, scratch, predRegNum);
         }
     }
 
     @SuppressWarnings("unused")
-    private static void tableswitch(TargetMethodAssembler tasm, PTXAssembler masm, int lowKey,
-                                    LabelRef defaultTarget, LabelRef[] targets,
-                                    Value value, Value scratch, int predNum) {
+    private static void tableswitch(TargetMethodAssembler tasm, PTXAssembler masm, int lowKey, LabelRef defaultTarget, LabelRef[] targets, Value value, Value scratch, int predNum) {
         Buffer buf = masm.codeBuffer;
 
         // Compare index against jump table bounds
@@ -321,7 +302,6 @@ public class PTXControlFlow {
 
         // address of jump table
         int tablePos = buf.position();
-
 
         JumpTable jt = new JumpTable(tablePos, lowKey, highKey, 4);
         String name = "jumptable" + jt.position;
