@@ -86,6 +86,10 @@ char**  Arguments::_jvm_flags_array             = NULL;
 int     Arguments::_num_jvm_flags               = 0;
 char**  Arguments::_jvm_args_array              = NULL;
 int     Arguments::_num_jvm_args                = 0;
+#ifdef GRAAL
+char**  Arguments::_graal_args_array              = NULL;
+int     Arguments::_num_graal_args                = 0;
+#endif
 char*  Arguments::_java_command                 = NULL;
 SystemProperty* Arguments::_system_properties   = NULL;
 const char*  Arguments::_gc_log_filename        = NULL;
@@ -791,6 +795,11 @@ void Arguments::build_jvm_args(const char* arg) {
 void Arguments::build_jvm_flags(const char* arg) {
   add_string(&_jvm_flags_array, &_num_jvm_flags, arg);
 }
+#ifdef GRAAL
+void Arguments::add_graal_arg(const char* arg) {
+  add_string(&_graal_args_array, &_num_graal_args, arg);
+}
+#endif
 
 // utility function to return a string that concatenates all
 // strings in a given char** array
@@ -1555,7 +1564,7 @@ void Arguments::set_parallel_gc_flags() {
 
 void Arguments::set_g1_gc_flags() {
   assert(UseG1GC, "Error");
-#ifdef COMPILER1
+#if defined(COMPILER1) || defined(GRAAL)
   FastTLABRefill = false;
 #endif
   FLAG_SET_DEFAULT(ParallelGCThreads,
@@ -2217,6 +2226,23 @@ bool Arguments::check_vm_args_consistency() {
     }
 #endif
   }
+#ifdef GRAAL
+  if (UseG1GC) {
+      if (IgnoreUnrecognizedVMOptions) {
+        FLAG_SET_CMDLINE(bool, UseG1GC, true);
+      } else {
+        status = true;
+      }
+  } else {
+      // This prevents the flag being set to true by set_ergonomics_flags()
+      FLAG_SET_CMDLINE(bool, UseG1GC, false);
+  }
+
+  if (!ScavengeRootsInCode) {
+      warning("forcing ScavengeRootsInCode non-zero because Graal is enabled");
+      ScavengeRootsInCode = 1;
+  }
+#endif
 
   // Need to limit the extent of the padding to reasonable size.
   // 8K is well beyond the reasonable HW cache line size, even with the
@@ -2263,6 +2289,7 @@ bool Arguments::check_vm_args_consistency() {
                 (2*G)/M);
     status = false;
   }
+
   return status;
 }
 
@@ -3097,8 +3124,19 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args,
           return JNI_EINVAL;
         }
       }
+    }
+#ifdef GRAAL
+    else if (match_option(option, "-G:", &tail)) { // -G:XXX
+      // Option for the Graal compiler.
+      if (PrintVMOptions) {
+        tty->print_cr("Graal option %s", tail);
+      }
+      Arguments::add_graal_arg(tail);
+
     // Unknown option
-    } else if (is_bad_option(option, args->ignoreUnrecognized)) {
+    }
+#endif
+    else if (is_bad_option(option, args->ignoreUnrecognized)) {
       return JNI_ERR;
     }
   }
@@ -3536,7 +3574,7 @@ jint Arguments::parse(const JavaVMInitArgs* args) {
     set_tiered_flags();
   } else {
     // Check if the policy is valid. Policies 0 and 1 are valid for non-tiered setup.
-    if (CompilationPolicyChoice >= 2) {
+    if (CompilationPolicyChoice >= 2 && CompilationPolicyChoice < 4) {
       vm_exit_during_initialization(
         "Incompatible compilation policy selected", NULL);
     }
@@ -3584,6 +3622,9 @@ jint Arguments::parse(const JavaVMInitArgs* args) {
 #ifdef COMPILER1
       || !UseFastLocking
 #endif // COMPILER1
+#ifdef GRAAL
+      || !GraalUseFastLocking
+#endif // GRAAL
     ) {
     if (!FLAG_IS_DEFAULT(UseBiasedLocking) && UseBiasedLocking) {
       // flag set to true on command line; warn the user that they

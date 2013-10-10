@@ -2439,6 +2439,16 @@ void G1CollectedHeap::allocate_dummy_regions() {
 }
 #endif // !PRODUCT
 
+#ifdef GRAAL
+HeapWord** G1CollectedHeap::top_addr() const {
+  return _mutator_alloc_region.top_addr();
+}
+
+HeapWord** G1CollectedHeap::end_addr()  const {
+  return  _mutator_alloc_region.end_addr();
+}
+#endif
+
 void G1CollectedHeap::increment_old_marking_cycles_started() {
   assert(_old_marking_cycles_started == _old_marking_cycles_completed ||
     _old_marking_cycles_started == _old_marking_cycles_completed + 1,
@@ -5109,12 +5119,20 @@ g1_process_strong_roots(bool is_scavenging,
 
   // Walk the code cache w/o buffering, because StarTask cannot handle
   // unaligned oop locations.
-  G1FilteredCodeBlobToOopClosure eager_scan_code_roots(this, scan_non_heap_roots);
+  G1FilteredCodeBlobToOopClosure eager_scan_cs_code_roots(this, scan_non_heap_roots);
+
+  // Scan all code roots from stack
+  CodeBlobToOopClosure eager_scan_all_code_roots(scan_non_heap_roots, true);
+  CodeBlobToOopClosure* blobs = &eager_scan_cs_code_roots;
+  if (UseNewCode && g1_policy()->during_initial_mark_pause()) {
+    // during initial-mark we need to take care to follow all code roots
+    blobs = &eager_scan_all_code_roots;
+  }
 
   process_strong_roots(false, // no scoping; this is parallel code
                        is_scavenging, so,
                        &buf_scan_non_heap_roots,
-                       &eager_scan_code_roots,
+                       blobs,
                        scan_klasses
                        );
 

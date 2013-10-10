@@ -374,6 +374,8 @@ JVM_ENTRY(jobject, JVM_InitProperties(JNIEnv *env, jobject properties))
     const char* compiler_name = "HotSpot " CSIZE "Client Compiler";
 #elif defined(COMPILER2)
     const char* compiler_name = "HotSpot " CSIZE "Server Compiler";
+#elif defined(GRAAL)
+    const char* compiler_name = "HotSpot " CSIZE "Graal Compiler";
 #else
     const char* compiler_name = "";
 #endif // compilers
@@ -669,7 +671,7 @@ JVM_ENTRY(jclass, JVM_GetCallerClass(JNIEnv* env, int depth))
   JVMWrapper("JVM_GetCallerClass");
 
   // Pre-JDK 8 and early builds of JDK 8 don't have a CallerSensitive annotation.
-  if (SystemDictionary::reflect_CallerSensitive_klass() == NULL) {
+  if (!JDK_Version::is_gte_jdk18x_version() || SystemDictionary::reflect_CallerSensitive_klass() == NULL) {
     Klass* k = thread->security_get_caller_class(depth);
     return (k == NULL) ? NULL : (jclass) JNIHandles::make_local(env, k->java_mirror());
   } else {
@@ -1120,6 +1122,17 @@ JVM_ENTRY(jobject, JVM_GetProtectionDomain(JNIEnv *env, jclass cls))
   return (jobject) JNIHandles::make_local(env, pd);
 JVM_END
 
+// Preserved in Graal repo so that linking against a JDK7 libjava.so works
+JVM_ENTRY(void, JVM_SetProtectionDomain(JNIEnv *env, jclass cls, jobject protection_domain))
+  JVMWrapper("JVM_SetProtectionDomain");
+
+  ResourceMark rm(THREAD);
+  const char* msg = "Obsolete JVM_SetProtectionDomain function called";
+  size_t buflen = strlen(msg);
+  char* buf = NEW_RESOURCE_ARRAY_IN_THREAD(THREAD, char, buflen);
+  jio_snprintf(buf, buflen, msg);
+  THROW_MSG(vmSymbols::java_lang_LinkageError(), buf);
+JVM_END
 
 static bool is_authorized(Handle context, instanceKlassHandle klass, TRAPS) {
   // If there is a security manager and protection domain, check the access
