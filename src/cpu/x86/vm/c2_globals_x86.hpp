@@ -38,12 +38,18 @@ define_pd_global(bool, InlineIntrinsics,             true);
 define_pd_global(bool, PreferInterpreterNativeStubs, false);
 define_pd_global(bool, ProfileTraps,                 true);
 define_pd_global(bool, UseOnStackReplacement,        true);
+define_pd_global(intx, TypeProfileWidth,             2   );
+define_pd_global(intx, MethodProfileWidth,           0   );
 #ifdef CC_INTERP
 define_pd_global(bool, ProfileInterpreter,           false);
 #else
 define_pd_global(bool, ProfileInterpreter,           true);
 #endif // CC_INTERP
+#ifdef GRAAL
+define_pd_global(bool, TieredCompilation,            false);
+#else
 define_pd_global(bool, TieredCompilation,            trueInTiered);
+#endif
 define_pd_global(intx, CompileThreshold,             10000);
 define_pd_global(intx, BackEdgeThreshold,            100000);
 
@@ -84,10 +90,13 @@ define_pd_global(bool, UseCISCSpill,                 true);
 define_pd_global(bool, OptoScheduling,               false);
 define_pd_global(bool, OptoBundling,                 false);
 
+#ifdef GRAAL
+define_pd_global(intx, ReservedCodeCacheSize,        64*M);
+#else
 define_pd_global(intx, ReservedCodeCacheSize,        48*M);
-define_pd_global(uintx, CodeCacheMinBlockLength,     4);
+#endif
+define_pd_global(uintx,CodeCacheMinBlockLength,      4);
 define_pd_global(uintx, CodeCacheMinimumUseSpace,    400*K);
-
 // Heap related flags
 define_pd_global(uintx,MetaspaceSize,    ScaleForWordSize(16*M));
 

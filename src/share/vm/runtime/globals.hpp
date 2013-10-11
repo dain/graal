@@ -120,6 +120,20 @@
 # include "c1_globals_bsd.hpp"
 #endif
 #endif
+#ifdef GRAAL
+#ifdef TARGET_ARCH_x86
+# include "graalGlobals_x86.hpp"
+#endif
+#ifdef TARGET_ARCH_sparc
+# include "graalGlobals_sparc.hpp"
+#endif
+#ifdef TARGET_ARCH_arm
+# include "graalGlobals_arm.hpp"
+#endif
+#ifdef TARGET_ARCH_ppc
+# include "graalGlobals_ppc.hpp"
+#endif
+#endif // GRAAL
 #ifdef COMPILER2
 #ifdef TARGET_ARCH_x86
 # include "c2_globals_x86.hpp"
@@ -149,7 +163,7 @@
 #endif
 #endif
 
-#if !defined(COMPILER1) && !defined(COMPILER2) && !defined(SHARK)
+#if !defined(COMPILER1) && !defined(COMPILER2) && !defined(SHARK) && !defined(GRAAL)
 define_pd_global(bool, BackgroundCompilation,        false);
 define_pd_global(bool, UseTLAB,                      false);
 define_pd_global(bool, CICompileOSR,                 false);
@@ -225,6 +239,7 @@ struct Flag {
     KIND_SHARK              = 1 << 15,
     KIND_LP64_PRODUCT       = 1 << 16,
     KIND_COMMERCIAL         = 1 << 17,
+    KIND_GRAAL              = 1 << 18,
 
     KIND_MASK = ~VALUE_ORIGIN_MASK
   };
@@ -2840,8 +2855,11 @@ class CommandLineFlags {
           "Prefetch instruction to prefetch ahead of allocation pointer")   \
                                                                             \
   /* deoptimization */                                                      \
-  develop(bool, TraceDeoptimization, false,                                 \
+  product(bool, TraceDeoptimization, false,                                 \
           "Trace deoptimization")                                           \
+                                                                            \
+  product(bool, PrintDeoptimizationDetails, false,                          \
+          "Print more information about deoptimization")                    \
                                                                             \
   develop(bool, DebugDeoptimization, false,                                 \
           "Tracing various information while debugging deoptimization")     \
@@ -2996,8 +3014,11 @@ class CommandLineFlags {
           "if non-zero, max # of Words that malloc/realloc can allocate "   \
           "(for testing only)")                                             \
                                                                             \
-  product(intx, TypeProfileWidth,     2,                                    \
+  product_pd(intx, TypeProfileWidth,                                        \
           "number of receiver types to record in call/cast profile")        \
+                                                                            \
+  product_pd(intx, MethodProfileWidth,                                      \
+          "number of methods to record in call profile")                    \
                                                                             \
   develop(intx, BciProfileWidth,      2,                                    \
           "number of return bci's to record in ret profile")                \
@@ -3746,6 +3767,12 @@ class CommandLineFlags {
                                                                             \
   product(bool , AllowNonVirtualCalls, false,                               \
           "Obey the ACC_SUPER flag and allow invokenonvirtual calls")       \
+                                                                            \
+  product(bool, TraceGPUInteraction, false,                                 \
+          "Trace external GPU Interaction")                                 \
+                                                                            \
+  product(bool, UseGPU, false,                                              \
+          "Run code on GPU")                                                \
                                                                             \
   diagnostic(ccstr, SharedArchiveFile, NULL,                                \
           "Override the default location of the CDS archive file")          \
