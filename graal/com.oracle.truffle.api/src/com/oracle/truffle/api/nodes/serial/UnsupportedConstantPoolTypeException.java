@@ -22,48 +22,29 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.truffle.api.frame;
+package com.oracle.truffle.api.nodes.serial;
 
-public final class FrameSlotImpl implements FrameSlot {
+/**
+ * Experimental API. May change without notice.
+ */
+public class UnsupportedConstantPoolTypeException extends RuntimeException {
 
-    private final FrameDescriptor descriptor;
-    private final Object identifier;
-    private final int index;
-    @com.oracle.truffle.api.CompilerDirectives.CompilationFinal private FrameSlotKind kind;
+    private static final long serialVersionUID = 1L;
 
-    public FrameSlotImpl(FrameDescriptor descriptor, Object identifier, int index, FrameSlotKind kind) {
-        this.descriptor = descriptor;
-        this.identifier = identifier;
-        this.index = index;
-        this.kind = kind;
+    public UnsupportedConstantPoolTypeException() {
+        super();
     }
 
-    public Object getIdentifier() {
-        return identifier;
+    public UnsupportedConstantPoolTypeException(String message, Throwable cause) {
+        super(message, cause);
     }
 
-    public int getIndex() {
-        return index;
+    public UnsupportedConstantPoolTypeException(String message) {
+        super(message);
     }
 
-    public FrameSlotKind getKind() {
-        return kind;
+    public UnsupportedConstantPoolTypeException(Throwable cause) {
+        super(cause);
     }
 
-    public void setKind(final FrameSlotKind kind) {
-        if (this.kind != kind) {
-            this.kind = kind;
-            this.descriptor.updateVersion();
-        }
-    }
-
-    @Override
-    public String toString() {
-        return "[" + index + "," + identifier + "," + kind + "]";
-    }
-
-    @Override
-    public FrameDescriptor getFrameDescriptor() {
-        return this.descriptor;
-    }
 }
