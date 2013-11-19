@@ -37,10 +37,14 @@ REM Note: Running this batch file from the Windows command shell requires
 REM that "grep" be accessible on the PATH. An MKS install does this.
 REM 
 
-cl 2>NUL >NUL
-if %errorlevel% == 0 goto nexttest
-echo Make sure cl.exe is in your PATH before running this script.
-goto end
+
+
+REM (cwirth) does not return a proper error code, so build fails all the time
+REM
+REM cl 2>NUL >NUL
+REM if %errorlevel% == 0 goto nexttest
+REM echo Make sure cl.exe is in your PATH before running this script.
+REM goto end
 
 :nexttest
 grep -V 2>NUL >NUL
@@ -155,7 +159,7 @@ echo   HotSpotJDKDist=%HotSpotJDKDist%
 
 REM This is now safe to do.
 :copyfiles
-for /D %%i in (compiler1, compiler2, tiered ) do (
+for /D %%i in (graal, compiler1, compiler2, tiered) do (
 if NOT EXIST %HotSpotBuildSpace%\%%i\generated mkdir %HotSpotBuildSpace%\%%i\generated
 copy %HotSpotWorkSpace%\make\windows\projectfiles\%%i\* %HotSpotBuildSpace%\%%i\generated > NUL
 )
@@ -163,7 +167,7 @@ copy %HotSpotWorkSpace%\make\windows\projectfiles\%%i\* %HotSpotBuildSpace%\%%i\
 REM force regneration of ProjectFile
 if exist %ProjectFile% del %ProjectFile%
 
-for /D %%i in (compiler1, compiler2, tiered ) do (
+for /D %%i in (graal, compiler1, compiler2, tiered) do (
 echo -- %%i --
 echo # Generated file!                                                        >    %HotSpotBuildSpace%\%%i\local.make
 echo # Changing a variable below and then deleting %ProjectFile% will cause  >>    %HotSpotBuildSpace%\%%i\local.make

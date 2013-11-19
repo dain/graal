@@ -37,12 +37,19 @@ define_pd_global(bool, InlineIntrinsics,             false);
 define_pd_global(bool, PreferInterpreterNativeStubs, false);
 define_pd_global(bool, ProfileTraps,                 true);
 define_pd_global(bool, UseOnStackReplacement,        true);
+define_pd_global(intx, TypeProfileWidth,             2   );
+define_pd_global(intx, MethodProfileWidth,           0   );
 #ifdef CC_INTERP
 define_pd_global(bool, ProfileInterpreter,           false);
 #else
 define_pd_global(bool, ProfileInterpreter,           true);
 #endif // CC_INTERP
+// Disable TieredCompilation while profile data problems are not resolved - same thing in c2_globals_x86.hpp
+#ifdef GRAAL
+define_pd_global(bool, TieredCompilation,            false);
+#else
 define_pd_global(bool, TieredCompilation,            trueInTiered);
+#endif
 define_pd_global(intx, CompileThreshold,             10000);
 define_pd_global(intx, BackEdgeThreshold,            140000);
 

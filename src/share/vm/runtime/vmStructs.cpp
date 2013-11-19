@@ -564,6 +564,8 @@ typedef BinaryTreeDictionary<Metablock, FreeList> MetablockTreeDictionary;
   nonstatic_field(Space,                       _bottom,                                       HeapWord*)                             \
   nonstatic_field(Space,                       _end,                                          HeapWord*)                             \
                                                                                                                                      \
+     static_field(HeapRegion,                  LogOfHRGrainBytes,                             int)                                   \
+                                                                                                                                     \
   nonstatic_field(ThreadLocalAllocBuffer,      _start,                                        HeapWord*)                             \
   nonstatic_field(ThreadLocalAllocBuffer,      _top,                                          HeapWord*)                             \
   nonstatic_field(ThreadLocalAllocBuffer,      _end,                                          HeapWord*)                             \
@@ -897,6 +899,7 @@ typedef BinaryTreeDictionary<Metablock, FreeList> MetablockTreeDictionary;
      static_field(Threads,                     _return_code,                                  int)                                   \
                                                                                                                                      \
   nonstatic_field(ThreadShadow,                _pending_exception,                            oop)                                   \
+  nonstatic_field(ThreadShadow,                _pending_deoptimization,                       int)                                   \
   nonstatic_field(ThreadShadow,                _exception_file,                               const char*)                           \
   nonstatic_field(ThreadShadow,                _exception_line,                               int)                                   \
    volatile_nonstatic_field(Thread,            _suspend_flags,                                uint32_t)                              \
@@ -1249,6 +1252,7 @@ typedef BinaryTreeDictionary<Metablock, FreeList> MetablockTreeDictionary;
   static_field(java_lang_Class,                _array_klass_offset,                           int)                                   \
   static_field(java_lang_Class,                _oop_size_offset,                              int)                                   \
   static_field(java_lang_Class,                _static_oop_field_count_offset,                int)                                   \
+  GRAAL_ONLY(static_field(java_lang_Class,     _graal_mirror_offset,                          int))                                  \
                                                                                                                                      \
   /************************/                                                                                                         \
   /* Miscellaneous fields */                                                                                                         \
@@ -1285,8 +1289,14 @@ typedef BinaryTreeDictionary<Metablock, FreeList> MetablockTreeDictionary;
   nonstatic_field(FreeList<Metablock>,         _size,                                        size_t)                                 \
   nonstatic_field(FreeList<FreeChunk>,         _count,                                       ssize_t)                                \
   nonstatic_field(FreeList<Metablock>,         _count,                                       ssize_t)                                \
-  nonstatic_field(MetablockTreeDictionary,     _total_size,                                  size_t)
-
+  nonstatic_field(MetablockTreeDictionary,     _total_size,                                  size_t)                                 \
+  GRAAL_ONLY(nonstatic_field(CompilerStatistics, _standard,                                  CompilerStatistics::Data))              \
+  GRAAL_ONLY(nonstatic_field(CompilerStatistics, _osr,                                       CompilerStatistics::Data))              \
+  GRAAL_ONLY(nonstatic_field(CompilerStatistics, _nmethods_size,                             int))                                   \
+  GRAAL_ONLY(nonstatic_field(CompilerStatistics, _nmethods_code_size,                        int))                                   \
+  GRAAL_ONLY(nonstatic_field(CompilerStatistics::Data, _bytes,                               int))                                   \
+  GRAAL_ONLY(nonstatic_field(CompilerStatistics::Data, _count,                               int))                                   \
+  GRAAL_ONLY(nonstatic_field(CompilerStatistics::Data, _time,                                elapsedTimer))
 
 //--------------------------------------------------------------------------------
 // VM_TYPES
@@ -1489,6 +1499,8 @@ typedef BinaryTreeDictionary<Metablock, FreeList> MetablockTreeDictionary;
            declare_type(EdenSpace,                    ContiguousSpace)    \
            declare_type(OffsetTableContigSpace,       ContiguousSpace)    \
            declare_type(TenuredSpace,                 OffsetTableContigSpace) \
+           declare_type(G1OffsetTableContigSpace,     ContiguousSpace)    \
+           declare_type(HeapRegion,                   G1OffsetTableContigSpace) \
   declare_toplevel_type(BarrierSet)                                       \
            declare_type(ModRefBarrierSet,             BarrierSet)         \
            declare_type(CardTableModRefBS,            ModRefBarrierSet)   \
@@ -2151,6 +2163,8 @@ typedef BinaryTreeDictionary<Metablock, FreeList> MetablockTreeDictionary;
   /* Miscellaneous types */                                               \
   /***************/                                                       \
                                                                           \
+  GRAAL_ONLY(declare_toplevel_type(CompilerStatistics))                   \
+  GRAAL_ONLY(declare_toplevel_type(CompilerStatistics::Data))             \
   declare_toplevel_type(PtrQueue)                                         \
                                                                           \
   /* freelist */                                                          \

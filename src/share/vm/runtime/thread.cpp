@@ -29,6 +29,9 @@
 #include "classfile/vmSymbols.hpp"
 #include "code/scopeDesc.hpp"
 #include "compiler/compileBroker.hpp"
+#ifdef GRAAL
+#include "graal/graalCompiler.hpp"
+#endif
 #include "interpreter/interpreter.hpp"
 #include "interpreter/linkResolver.hpp"
 #include "interpreter/oopMapCache.hpp"
@@ -50,6 +53,7 @@
 #include "runtime/deoptimization.hpp"
 #include "runtime/fprofiler.hpp"
 #include "runtime/frame.inline.hpp"
+#include "runtime/gpu.hpp"
 #include "runtime/init.hpp"
 #include "runtime/interfaceSupport.hpp"
 #include "runtime/java.hpp"
@@ -1409,6 +1413,36 @@ void WatcherThread::print_on(outputStream* st) const {
 
 // ======= JavaThread ========
 
+#ifdef GRAAL
+
+#if GRAAL_COUNTERS_SIZE > 0
+jlong JavaThread::_graal_old_thread_counters[GRAAL_COUNTERS_SIZE];
+
+bool graal_counters_include(oop threadObj) {
+  return !GRAAL_COUNTERS_EXCLUDE_COMPILER_THREADS || threadObj == NULL || threadObj->klass() != SystemDictionary::CompilerThread_klass();
+}
+
+void JavaThread::collect_counters(typeArrayOop array) {
+  MutexLocker tl(Threads_lock);
+  for (int i = 0; i < array->length(); i++) {
+    array->long_at_put(i, _graal_old_thread_counters[i]);
+  }
+  for (JavaThread* tp = Threads::first(); tp != NULL; tp = tp->next()) {
+    if (graal_counters_include(tp->threadObj())) {
+      for (int i = 0; i < array->length(); i++) {
+        array->long_at_put(i, array->long_at(i) + tp->_graal_counters[i]);
+      }
+    }
+  }
+}
+#else
+void JavaThread::collect_counters(typeArrayOop array) {
+  // empty
+}
+#endif // GRAAL_COUNTERS_SIZE > 0
+
+#endif // GRAAL
+
 // A JavaThread is a normal Java thread
 
 void JavaThread::initialize() {
@@ -1416,7 +1450,8 @@ void JavaThread::initialize() {
 
   // Set the claimed par_id to -1 (ie not claiming any par_ids)
   set_claimed_par_id(-1);
-
+  
+  _buffer_blob = NULL;
   set_saved_exception_pc(NULL);
   set_threadObj(NULL);
   _anchor.clear();
@@ -1444,6 +1479,14 @@ void JavaThread::initialize() {
   _in_deopt_handler = 0;
   _doing_unsafe_access = false;
   _stack_guard_state = stack_guard_unused;
+#ifdef GRAAL
+  _graal_alternate_call_target = NULL;
+#if GRAAL_COUNTERS_SIZE > 0
+  for (int i = 0; i < GRAAL_COUNTERS_SIZE; i++) {
+    _graal_counters[i] = 0;
+  }
+#endif // GRAAL_COUNTER_SIZE > 0
+#endif // GRAAL
   (void)const_cast<oop&>(_exception_oop = NULL);
   _exception_pc  = 0;
   _exception_handler_pc = 0;
@@ -1461,6 +1504,7 @@ void JavaThread::initialize() {
   _do_not_unlock_if_synchronized = false;
   _cached_monitor_info = NULL;
   _parker = Parker::Allocate(this) ;
+  _scanned_nmethod = NULL;
 
 #ifndef PRODUCT
   _jmp_ring_index = 0;
@@ -1630,6 +1674,14 @@ JavaThread::~JavaThread() {
   ThreadSafepointState::destroy(this);
   if (_thread_profiler != NULL) delete _thread_profiler;
   if (_thread_stat != NULL) delete _thread_stat;
+
+#if defined(GRAAL) && (GRAAL_COUNTERS_SIZE > 0)
+  if (graal_counters_include(threadObj())) {
+    for (int i = 0; i < GRAAL_COUNTERS_SIZE; i++) {
+      _graal_old_thread_counters[i] += _graal_counters[i];
+    }
+  }
+#endif
 }
 
 
@@ -2211,7 +2263,7 @@ void JavaThread::send_thread_stop(oop java_throwable)  {
           RegisterMap reg_map(this, UseBiasedLocking);
           frame compiled_frame = f.sender(&reg_map);
           if (!StressCompiledExceptionHandlers && compiled_frame.can_be_deoptimized()) {
-            Deoptimization::deoptimize(this, compiled_frame, &reg_map);
+            Deoptimization::deoptimize(this, compiled_frame, &reg_map, Deoptimization::Reason_constraint);
           }
         }
       }
@@ -2644,7 +2696,7 @@ void JavaThread::deoptimize() {
         trace_frames();
         trace_stack();
       }
-      Deoptimization::deoptimize(this, *fst.current(), fst.register_map());
+      Deoptimization::deoptimize(this, *fst.current(), fst.register_map(), Deoptimization::Reason_constraint);
     }
   }
 
@@ -2680,7 +2732,7 @@ void JavaThread::deoptimized_wrt_marked_nmethods() {
                    this->name(), nm != NULL ? nm->compile_id() : -1);
       }
 
-      Deoptimization::deoptimize(this, *fst.current(), fst.register_map());
+      Deoptimization::deoptimize(this, *fst.current(), fst.register_map(), Deoptimization::Reason_constraint);
     }
   }
 }
@@ -2786,6 +2838,13 @@ void JavaThread::oops_do(OopClosure* f, CLDToOopClosure* cld_f, CodeBlobClosure*
 
   if (jvmti_thread_state() != NULL) {
     jvmti_thread_state()->oops_do(f);
+  }
+
+  if (_scanned_nmethod != NULL && cf != NULL) {
+    // Safepoints can occur when the sweeper is scanning an nmethod so
+    // process it here to make sure it isn't unloaded in the middle of
+    // a scan.
+    cf->do_code_blob(_scanned_nmethod);
   }
 }
 
@@ -3317,6 +3376,10 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   // Initialize the os module before using TLS
   os::init();
 
+  // Probe for existance of supported GPU and initialize it if one
+  // exists.
+  gpu::init();
+
   // Initialize system properties.
   Arguments::init_system_properties();
 
@@ -3638,7 +3701,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   }
 
   // initialize compiler(s)
-#if defined(COMPILER1) || defined(COMPILER2) || defined(SHARK)
+#if defined(COMPILER1) || defined(COMPILER2) || defined(SHARK) || defined(GRAALVM)
   CompileBroker::compilation_init();
 #endif
 

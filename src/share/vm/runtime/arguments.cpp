@@ -35,6 +35,7 @@
 #include "prims/jvmtiExport.hpp"
 #include "runtime/arguments.hpp"
 #include "runtime/globals_extension.hpp"
+#include "runtime/gpu.hpp"
 #include "runtime/java.hpp"
 #include "services/management.hpp"
 #include "services/memTracker.hpp"
@@ -89,6 +90,10 @@ char**  Arguments::_jvm_flags_array             = NULL;
 int     Arguments::_num_jvm_flags               = 0;
 char**  Arguments::_jvm_args_array              = NULL;
 int     Arguments::_num_jvm_args                = 0;
+#ifdef GRAAL
+char**  Arguments::_graal_args_array              = NULL;
+int     Arguments::_num_graal_args                = 0;
+#endif
 char*  Arguments::_java_command                 = NULL;
 SystemProperty* Arguments::_system_properties   = NULL;
 const char*  Arguments::_gc_log_filename        = NULL;
@@ -126,6 +131,9 @@ SystemProperty *Arguments::_java_library_path = NULL;
 SystemProperty *Arguments::_java_home = NULL;
 SystemProperty *Arguments::_java_class_path = NULL;
 SystemProperty *Arguments::_sun_boot_class_path = NULL;
+#ifdef GRAAL
+SystemProperty *Arguments::_graal_gpu_isalist = NULL;
+#endif
 
 char* Arguments::_meta_index_path = NULL;
 char* Arguments::_meta_index_dir = NULL;
@@ -189,6 +197,9 @@ void Arguments::init_system_properties() {
   _sun_boot_class_path = new SystemProperty("sun.boot.class.path", NULL,  true);
 
   _java_class_path = new SystemProperty("java.class.path", "",  true);
+#ifdef GRAAL
+  _graal_gpu_isalist = new SystemProperty("graal.gpu.isalist", NULL, true);
+#endif
 
   // Add to System Property list.
   PropertyList_add(&_system_properties, _java_ext_dirs);
@@ -198,6 +209,9 @@ void Arguments::init_system_properties() {
   PropertyList_add(&_system_properties, _java_home);
   PropertyList_add(&_system_properties, _java_class_path);
   PropertyList_add(&_system_properties, _sun_boot_class_path);
+#ifdef GRAAL
+  PropertyList_add(&_system_properties, _graal_gpu_isalist);
+#endif
 
   // Set OS specific system properties values
   os::init_system_properties_values();
@@ -795,6 +809,11 @@ void Arguments::build_jvm_args(const char* arg) {
 void Arguments::build_jvm_flags(const char* arg) {
   add_string(&_jvm_flags_array, &_num_jvm_flags, arg);
 }
+#ifdef GRAAL
+void Arguments::add_graal_arg(const char* arg) {
+  add_string(&_graal_args_array, &_num_graal_args, arg);
+}
+#endif
 
 // utility function to return a string that concatenates all
 // strings in a given char** array
@@ -1100,7 +1119,7 @@ void Arguments::set_mode_flags(Mode mode) {
   }
 }
 
-#if defined(COMPILER2) || defined(_LP64) || !INCLUDE_CDS
+#if defined(COMPILER2) || defined(GRAAL) || defined(_LP64) || !INCLUDE_CDS
 // Conflict: required to use shared spaces (-Xshare:on), but
 // incompatible command line options were chosen.
 
@@ -1523,7 +1542,7 @@ void Arguments::set_ergonomics_flags() {
       }
     }
   }
-#ifdef COMPILER2
+#if defined(COMPILER2) || defined(GRAAL)
   // Shared spaces work fine with other GCs but causes bytecode rewriting
   // to be disabled, which hurts interpreter performance and decreases
   // server performance.  When -server is specified, keep the default off
@@ -1595,7 +1614,7 @@ void Arguments::set_parallel_gc_flags() {
 
 void Arguments::set_g1_gc_flags() {
   assert(UseG1GC, "Error");
-#ifdef COMPILER1
+#if defined(COMPILER1) || defined(GRAAL)
   FastTLABRefill = false;
 #endif
   FLAG_SET_DEFAULT(ParallelGCThreads,
@@ -2301,6 +2320,23 @@ bool Arguments::check_vm_args_consistency() {
     }
 #endif
   }
+#ifdef GRAAL
+  if (UseG1GC) {
+      if (IgnoreUnrecognizedVMOptions) {
+        FLAG_SET_CMDLINE(bool, UseG1GC, true);
+      } else {
+        status = true;
+      }
+  } else {
+      // This prevents the flag being set to true by set_ergonomics_flags()
+      FLAG_SET_CMDLINE(bool, UseG1GC, false);
+  }
+
+  if (!ScavengeRootsInCode) {
+      warning("forcing ScavengeRootsInCode non-zero because Graal is enabled");
+      ScavengeRootsInCode = 1;
+  }
+#endif
 
   // Need to limit the extent of the padding to reasonable size.
   // 8K is well beyond the reasonable HW cache line size, even with the
@@ -2603,6 +2639,11 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args,
           return JNI_ERR;
         }
 #endif // !INCLUDE_JVMTI
+#if defined(GRAAL)
+        if (strcmp(name, "hprof") == 0) {
+          FLAG_SET_CMDLINE(bool, GraalHProfEnabled, true);
+        }
+#endif
         add_init_library(name, options);
       }
     // -agentlib and -agentpath
@@ -2625,6 +2666,12 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args,
           return JNI_ERR;
         }
 #endif // !INCLUDE_JVMTI
+#if defined(GRAAL)
+        if (valid_hprof_or_jdwp_agent(name, is_absolute_path)) {
+          FLAG_SET_CMDLINE(bool, GraalHProfEnabled, true);
+        }
+#endif
+
         add_init_agent(name, options, is_absolute_path);
       }
     // -javaagent
@@ -3180,8 +3227,19 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args,
           return JNI_EINVAL;
         }
       }
+    }
+#ifdef GRAAL
+    else if (match_option(option, "-G:", &tail)) { // -G:XXX
+      // Option for the Graal compiler.
+      if (PrintVMOptions) {
+        tty->print_cr("Graal option %s", tail);
+      }
+      Arguments::add_graal_arg(tail);
+
     // Unknown option
-    } else if (is_bad_option(option, args->ignoreUnrecognized)) {
+    }
+#endif
+    else if (is_bad_option(option, args->ignoreUnrecognized)) {
       return JNI_ERR;
     }
   }
@@ -3694,6 +3752,9 @@ jint Arguments::apply_ergo() {
 #ifdef COMPILER1
       || !UseFastLocking
 #endif // COMPILER1
+#ifdef GRAAL
+      || !GraalUseFastLocking
+#endif // GRAAL
     ) {
     if (!FLAG_IS_DEFAULT(UseBiasedLocking) && UseBiasedLocking) {
       // flag set to true on command line; warn the user that they
@@ -3790,6 +3851,24 @@ jint Arguments::apply_ergo() {
       FLAG_SET_DEFAULT(PauseAtExit, true);
     }
   }
+
+#ifdef GRAAL
+  if (_graal_gpu_isalist->value() == NULL) {
+    // Initialize the graal.gpu.isalist system property if
+    // a) it was not explicitly defined by the user and
+    // b) at least one GPU is available.
+    // GPU offload can be disabled by setting the property
+    // to the empty string on the command line
+    if (gpu::is_available() && gpu::has_gpu_linkage()) {
+      if (gpu::get_target_il_type() == gpu::PTX) {
+        _graal_gpu_isalist->append_value("PTX");
+      }
+      if (gpu::get_target_il_type() == gpu::HSAIL) {
+        _graal_gpu_isalist->append_value("HSAIL");
+      }
+    }
+  }
+#endif
 
   return JNI_OK;
 }

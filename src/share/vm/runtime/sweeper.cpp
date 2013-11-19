@@ -439,10 +439,18 @@ void NMethodSweeper::possibly_enable_sweeper() {
 
 class NMethodMarker: public StackObj {
  private:
+#ifdef GRAAL
+  JavaThread* _thread;
+#else
   CompilerThread* _thread;
+#endif
  public:
   NMethodMarker(nmethod* nm) {
+#ifdef GRAAL
+    _thread = JavaThread::current();
+#else
     _thread = CompilerThread::current();
+#endif
     if (!nm->is_zombie() && !nm->is_unloaded()) {
       // Only expose live nmethods for scanning
       _thread->set_scanned_nmethod(nm);

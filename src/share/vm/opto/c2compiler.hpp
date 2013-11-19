@@ -32,6 +32,8 @@ class C2Compiler : public AbstractCompiler {
   static bool init_c2_runtime();
 
 public:
+  C2Compiler() : AbstractCompiler(c2) {}
+
   // Name
   const char *name() { return "C2"; }
 
