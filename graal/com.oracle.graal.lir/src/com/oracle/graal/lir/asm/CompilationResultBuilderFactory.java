@@ -20,28 +20,31 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.lir;
+package com.oracle.graal.lir.asm;
 
 import com.oracle.graal.api.code.*;
-import com.oracle.graal.lir.asm.*;
+import com.oracle.graal.asm.*;
+import com.oracle.graal.lir.*;
 
 /**
- * Emits an infopoint (only mark the position).
+ * Factory class for creating {@link CompilationResultBuilder}s.
  */
-@Opcode("INFOPOINT")
-public class InfopointOp extends LIRInstruction {
+public interface CompilationResultBuilderFactory {
 
-    @State protected LIRFrameState state;
+    /**
+     * Creates a new {@link CompilationResultBuilder}.
+     */
+    CompilationResultBuilder createBuilder(CodeCacheProvider codeCache, ForeignCallsProvider foreignCalls, FrameMap frameMap, AbstractAssembler asm, FrameContext frameContext,
+                    CompilationResult compilationResult);
 
-    private final InfopointReason reason;
+    /**
+     * The default factory creates a standard {@link CompilationResultBuilder}.
+     */
+    CompilationResultBuilderFactory Default = new CompilationResultBuilderFactory() {
 
-    public InfopointOp(LIRFrameState state, InfopointReason reason) {
-        this.state = state;
-        this.reason = reason;
-    }
-
-    @Override
-    public void emitCode(CompilationResultBuilder crb) {
-        crb.recordInfopoint(crb.asm.codeBuffer.position(), state, reason);
-    }
+        public CompilationResultBuilder createBuilder(CodeCacheProvider codeCache, ForeignCallsProvider foreignCalls, FrameMap frameMap, AbstractAssembler asm, FrameContext frameContext,
+                        CompilationResult compilationResult) {
+            return new CompilationResultBuilder(codeCache, foreignCalls, frameMap, asm, frameContext, compilationResult);
+        }
+    };
 }
