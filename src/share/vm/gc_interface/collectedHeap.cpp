@@ -209,6 +209,9 @@ void CollectedHeap::pre_initialize() {
 #ifdef COMPILER2
   _defer_initial_card_mark =    ReduceInitialCardMarks && can_elide_tlab_store_barriers()
                              && (DeferInitialCardMark || card_mark_must_follow_store());
+#elif defined GRAAL
+  _defer_initial_card_mark =   GraalDeferredInitBarriers && can_elide_tlab_store_barriers()
+                               && (DeferInitialCardMark || card_mark_must_follow_store());
 #else
   assert(_defer_initial_card_mark == false, "Who would set it?");
 #endif
@@ -501,7 +504,7 @@ void CollectedHeap::ensure_parsability(bool retire_tlabs) {
          " to threads list is doomed to failure!");
   for (JavaThread *thread = Threads::first(); thread; thread = thread->next()) {
      if (use_tlab) thread->tlab().make_parsable(retire_tlabs);
-#ifdef COMPILER2
+#if defined(COMPILER2) || defined(GRAAL)
      // The deferred store barriers must all have been flushed to the
      // card-table (or other remembered set structure) before GC starts
      // processing the card-table (or other remembered set).

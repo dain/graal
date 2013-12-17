@@ -48,6 +48,10 @@ CXX_FLAGS=$(CXX_FLAGS) /D "COMPILER2"
 CXX_FLAGS=$(CXX_FLAGS) /D "COMPILER1" /D "COMPILER2"
 !endif
 
+!if "$(Variant)" == "graal"
+CPP_FLAGS=$(CPP_FLAGS) /D "GRAAL"
+!endif
+
 !if "$(BUILDARCH)" == "i486"
 HOTSPOT_LIB_ARCH=i386
 !else
@@ -122,6 +126,7 @@ CXX_INCLUDE_DIRS=$(CXX_INCLUDE_DIRS) \
   /I "$(COMMONSRC)\share\vm\prims" \
   /I "$(COMMONSRC)\os\windows\vm" \
   /I "$(COMMONSRC)\os_cpu\windows_$(Platform_arch)\vm" \
+  /I "$(COMMONSRC)\os_gpu\windows_hsail\vm" \
   /I "$(COMMONSRC)\cpu\$(Platform_arch)\vm"
 
 CXX_DONT_USE_PCH=/D DONT_USE_PRECOMPILED_HEADER
@@ -142,6 +147,7 @@ VM_PATH=$(VM_PATH);../generated/adfiles
 VM_PATH=$(VM_PATH);../generated/jvmtifiles
 VM_PATH=$(VM_PATH);../generated/tracefiles
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/share/vm/c1
+VM_PATH=$(VM_PATH);$(WorkSpace)/src/share/vm/graal
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/share/vm/compiler
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/share/vm/code
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/share/vm/interpreter
@@ -165,6 +171,7 @@ VM_PATH=$(VM_PATH);$(WorkSpace)/src/share/vm/utilities
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/share/vm/libadt
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/os/windows/vm
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/os_cpu/windows_$(Platform_arch)/vm
+VM_PATH=$(VM_PATH);$(WorkSpace)/src/os_gpu/windows_hsail/vm
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/cpu/$(Platform_arch)/vm
 VM_PATH=$(VM_PATH);$(WorkSpace)/src/share/vm/opto
 

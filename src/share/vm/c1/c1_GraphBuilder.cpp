@@ -3539,6 +3539,8 @@ bool GraphBuilder::try_inline_intrinsics(ciMethod* callee) {
     case vmIntrinsics::_updateBytesCRC32:
     case vmIntrinsics::_updateByteBufferCRC32:
       if (!UseCRC32Intrinsics) return false;
+      // GRAAL-409: CRC32 C1 intrinsics cause errors on jdk version earlier than 8
+      if (!JDK_Version::is_gte_jdk18x_version()) return false;
       cantrap = false;
       preserves_state = true;
       break;
@@ -4338,11 +4340,15 @@ void GraphBuilder::print_stats() {
 #endif // PRODUCT
 
 void GraphBuilder::profile_call(ciMethod* callee, Value recv, ciKlass* known_holder, Values* obj_args, bool inlined) {
-  // A default method's holder is an interface
-  if (known_holder != NULL && known_holder->is_interface()) {
-    assert(known_holder->is_instance_klass() && ((ciInstanceKlass*)known_holder)->has_default_methods(), "should be default method");
-    known_holder = NULL;
+  assert(known_holder == NULL || (known_holder->is_instance_klass() &&
+                                  (!known_holder->is_interface() ||
+                                   ((ciInstanceKlass*)known_holder)->has_default_methods())), "should be default method");
+  if (known_holder != NULL) {
+    if (known_holder->exact_klass() == NULL) {
+      known_holder = compilation()->cha_exact_type(known_holder);
+    }
   }
+
   append(new ProfileCall(method(), bci(), callee, recv, known_holder, obj_args, inlined));
 }
 

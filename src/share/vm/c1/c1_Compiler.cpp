@@ -43,7 +43,8 @@
 #include "runtime/sharedRuntime.hpp"
 
 
-Compiler::Compiler () {}
+Compiler::Compiler() : AbstractCompiler(c1) {
+}
 
 void Compiler::init_c1_runtime() {
   BufferBlob* buffer_blob = CompilerThread::current()->get_buffer_blob();
