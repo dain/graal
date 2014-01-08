@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,13 +24,23 @@
  */
 package com.oracle.truffle.api.nodes.instrument;
 
-import com.oracle.truffle.api.nodes.instrument.InstrumentationProbeNode.DefaultProbeNode;
+import java.util.*;
+
+import com.oracle.truffle.api.nodes.*;
 
 /**
- * An "probe" that does nothing, used for testing. It relies on the
- * {@link InstrumentationProbeNode.DefaultProbeNode} implementation to override every event with an
- * empty method.
+ * A kind of {@link Node} that can be marked as belong to 0 or more {@linkplain NodePhylum phyla}.
  */
-public class EmptyProbe extends DefaultProbeNode {
+public interface PhylumMarked {
+
+    /**
+     * Is this proxy tagged as belonging to a particular category of language constructs?
+     */
+    boolean isMarkedAs(NodePhylum phylum);
+
+    /**
+     * In which categories is this node tagged (<em>empty set</em> if none).
+     */
+    Set<NodePhylum> getPhylumMarks();
 
 }

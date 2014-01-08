@@ -22,32 +22,27 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.truffle.api.nodes.instrument;
+package com.oracle.truffle.api;
+
+import java.io.*;
 
 import com.oracle.truffle.api.nodes.*;
-import com.oracle.truffle.api.nodes.instrument.InstrumentationProbeNode.ProbeChain;
 
 /**
- * Interface implemented by language-specific Truffle <strong>proxy nodes</strong>: nodes that do
- * not participate in the language's execution semantics, but which are inserted into an AST so that
- * tools (e.g. tracers, analyzers, debuggers) can be notified of AST interpretation events and
- * possibly intervene.
+ * Language-agnostic access to AST-based debugging support.
  * <p>
- * Language-specific proxy nodes call notification methods on an attached {@linkplain ProbeChain
- * probe chain} which passes along {@linkplain InstrumentationProbeEvents events} to any
- * {@linkplain InstrumentationProbeNode probes} that might have been attached.
+ * <strong>WARNING:</strong> this interface is under development and will change substantially.
  */
-public interface InstrumentationProxyNode extends InstrumentationNode, PhylumMarked {
+public interface ASTPrinter {
 
     /**
-     * Gets the non-instrumentation node being proxied.
+     * Print a textual AST display, one line per node, with nesting.
+     * 
+     * @param p
+     * @param node the root node of the display.
+     * @param maxDepth the maximum number of levels to print below the root
+     * @param markNode a node to mark with a textual arrow prefix, if present.
      */
-    Node getChild();
-
-    /**
-     * Gets the chain of probes to which events at this node are delegated. Note that a chain of
-     * probes may be used by more than one proxy.
-     */
-    ProbeChain getProbeChain();
+    void printTree(PrintWriter p, Node node, int maxDepth, Node markNode);
 
 }
