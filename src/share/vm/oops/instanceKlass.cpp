@@ -2982,9 +2982,9 @@ void InstanceKlass::oop_print_on(oop obj, outputStream* st) {
   if (this == SystemDictionary::String_klass()) {
     typeArrayOop value  = java_lang_String::value(obj);
     juint        offset = java_lang_String::offset(obj);
+    if (value != NULL) {
     juint        length = java_lang_String::length(obj);
-    if (value != NULL &&
-        value->is_typeArray() &&
+      if (value->is_typeArray() &&
         offset          <= (juint) value->length() &&
         offset + length <= (juint) value->length()) {
       st->print(BULLET"string: ");
@@ -2992,6 +2992,7 @@ void InstanceKlass::oop_print_on(oop obj, outputStream* st) {
       st->cr();
       if (!WizardMode)  return;  // that is enough
     }
+  }
   }
 
   st->print_cr(BULLET"---- fields (total size %d words):", oop_size(obj));

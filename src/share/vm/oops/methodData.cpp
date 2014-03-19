@@ -416,6 +416,18 @@ void ReceiverTypeData::clean_weak_klass_links(BoolObjectClosure* is_alive_cl) {
   }
 }
 
+#ifdef GRAAL
+void VirtualCallData::clean_weak_klass_links(BoolObjectClosure* is_alive_cl) {
+  ReceiverTypeData::clean_weak_klass_links(is_alive_cl);
+  for (uint row = 0; row < method_row_limit(); row++) {
+    Method* p = method(row);
+    if (p != NULL && !p->method_holder()->is_loader_alive(is_alive_cl)) {
+      clear_method_row(row);
+    }
+  }
+}
+#endif // GRAAL
+
 #ifndef PRODUCT
 void ReceiverTypeData::print_receiver_data_on(outputStream* st) const {
   uint row;
@@ -423,7 +435,11 @@ void ReceiverTypeData::print_receiver_data_on(outputStream* st) const {
   for (row = 0; row < row_limit(); row++) {
     if (receiver(row) != NULL)  entries++;
   }
+#ifdef GRAAL
+  st->print_cr("count(%u) nonprofiled_count(%u) entries(%u)", count(), nonprofiled_count(), entries);
+#else
   st->print_cr("count(%u) entries(%u)", count(), entries);
+#endif
   int total = count();
   for (row = 0; row < row_limit(); row++) {
     if (receiver(row) != NULL) {
@@ -442,9 +458,38 @@ void ReceiverTypeData::print_data_on(outputStream* st, const char* extra) const 
   print_shared(st, "ReceiverTypeData", extra);
   print_receiver_data_on(st);
 }
+
+#ifdef GRAAL
+void VirtualCallData::print_method_data_on(outputStream* st) const {
+  uint row;
+  int entries = 0;
+  for (row = 0; row < method_row_limit(); row++) {
+    if (method(row) != NULL) entries++;
+  }
+  tab(st);
+  st->print_cr("method_entries(%u)", entries);
+  int total = count();
+  for (row = 0; row < method_row_limit(); row++) {
+    if (method(row) != NULL) {
+      total += method_count(row);
+    }
+  }
+  for (row = 0; row < method_row_limit(); row++) {
+    if (method(row) != NULL) {
+      tab(st);
+      method(row)->print_value_on(st);
+      st->print_cr("(%u %4.2f)", method_count(row), (float) method_count(row) / (float) total);
+    }
+  }
+}
+#endif
+
 void VirtualCallData::print_data_on(outputStream* st, const char* extra) const {
   print_shared(st, "VirtualCallData", extra);
   print_receiver_data_on(st);
+#ifdef GRAAL
+  print_method_data_on(st);
+#endif
 }
 #endif // !PRODUCT
 
@@ -681,7 +726,7 @@ MethodData* MethodData::allocate(ClassLoaderData* loader_data, methodHandle meth
 }
 
 int MethodData::bytecode_cell_count(Bytecodes::Code code) {
-#if defined(COMPILER1) && !defined(COMPILER2)
+#if defined(COMPILER1) && !(defined(COMPILER2) || defined(GRAAL))
   return no_profile_data;
 #else
   switch (code) {
@@ -810,6 +855,14 @@ bool MethodData::is_speculative_trap_bytecode(Bytecodes::Code code) {
   return false;
 }
 
+#ifdef GRAAL
+int MethodData::compute_extra_data_count(int data_size, int empty_bc_count, bool needs_speculative_traps) {
+  if (!ProfileTraps) return 0;
+
+  // Assume that up to 30% of the possibly trapping BCIs with no MDP will need to allocate one.
+  return MIN2(empty_bc_count, MAX2(4, (empty_bc_count * 30) / 100));
+}
+#else
 int MethodData::compute_extra_data_count(int data_size, int empty_bc_count, bool needs_speculative_traps) {
   if (ProfileTraps) {
     // Assume that up to 3% of BCIs with no MDP will need to allocate one.
@@ -837,6 +890,7 @@ int MethodData::compute_extra_data_count(int data_size, int empty_bc_count, bool
     return 0;
   }
 }
+#endif
 
 // Compute the size of the MethodData* necessary to store
 // profiling information about a given method.  Size is in bytes.
@@ -849,7 +903,7 @@ int MethodData::compute_allocation_size_in_bytes(methodHandle method) {
   while ((c = stream.next()) >= 0) {
     int size_in_bytes = compute_data_size(&stream);
     data_size += size_in_bytes;
-    if (size_in_bytes == 0)  empty_bc_count += 1;
+    if (size_in_bytes == 0 GRAAL_ONLY(&& Bytecodes::can_trap(c)))  empty_bc_count += 1;
     needs_speculative_traps = needs_speculative_traps || is_speculative_trap_bytecode(c);
   }
   int object_size = in_bytes(data_offset()) + data_size;
@@ -883,7 +937,7 @@ int MethodData::compute_allocation_size_in_words(methodHandle method) {
 // the segment in bytes.
 int MethodData::initialize_data(BytecodeStream* stream,
                                        int data_index) {
-#if defined(COMPILER1) && !defined(COMPILER2)
+#if defined(COMPILER1) && !(defined(COMPILER2) || defined(GRAAL))
   return 0;
 #else
   int cell_count = -1;
@@ -1073,10 +1127,14 @@ void MethodData::post_initialize(BytecodeStream* stream) {
 // Initialize the MethodData* corresponding to a given method.
 MethodData::MethodData(methodHandle method, int size, TRAPS)
   : _extra_data_lock(Monitor::leaf, "MDO extra data lock") {
-  No_Safepoint_Verifier no_safepoint;  // init function atomic wrt GC
-  ResourceMark rm;
   // Set the method back-pointer.
   _method = method();
+  initialize();
+}
+
+void MethodData::initialize(bool for_reprofile) {
+  No_Safepoint_Verifier no_safepoint;  // init function atomic wrt GC
+  ResourceMark rm;
 
   init();
   set_creation_mileage(mileage_of(method()));
@@ -1086,13 +1144,13 @@ MethodData::MethodData(methodHandle method, int size, TRAPS)
   int data_size = 0;
   int empty_bc_count = 0;  // number of bytecodes lacking data
   _data[0] = 0;  // apparently not set below.
-  BytecodeStream stream(method);
+  BytecodeStream stream(method());
   Bytecodes::Code c;
   bool needs_speculative_traps = false;
   while ((c = stream.next()) >= 0) {
     int size_in_bytes = initialize_data(&stream, data_size);
     data_size += size_in_bytes;
-    if (size_in_bytes == 0)  empty_bc_count += 1;
+    if (size_in_bytes == 0 GRAAL_ONLY(&& Bytecodes::can_trap(c)))  empty_bc_count += 1;
     needs_speculative_traps = needs_speculative_traps || is_speculative_trap_bytecode(c);
   }
   _data_size = data_size;
@@ -1102,6 +1160,12 @@ MethodData::MethodData(methodHandle method, int size, TRAPS)
   int extra_data_count = compute_extra_data_count(data_size, empty_bc_count, needs_speculative_traps);
   int extra_size = extra_data_count * DataLayout::compute_size_in_bytes(0);
 
+//#ifdef GRAAL
+//  if (for_reprofile) {
+//    // Clear out extra data
+//    Copy::zero_to_bytes((HeapWord*) extra_data_base(), extra_size);
+//  }
+//#endif
   // Let's zero the space for the extra data
   Copy::zero_to_bytes(((address)_data) + data_size, extra_size);
 
@@ -1110,7 +1174,7 @@ MethodData::MethodData(methodHandle method, int size, TRAPS)
   // the code for traps cells works.
   DataLayout *dp = data_layout_at(data_size + extra_size);
 
-  int arg_size = method->size_of_parameters();
+  int arg_size = method()->size_of_parameters();
   dp->initialize(DataLayout::arg_info_data_tag, 0, arg_size+1);
 
   int arg_data_size = DataLayout::compute_size_in_bytes(arg_size+1);
@@ -1139,6 +1203,7 @@ MethodData::MethodData(methodHandle method, int size, TRAPS)
 
   post_initialize(&stream);
 
+  assert(object_size == compute_allocation_size_in_bytes(methodHandle(_method)), "MethodData: computed size != initialized size");
   set_size(object_size);
 }
 
@@ -1152,6 +1217,9 @@ void MethodData::init() {
   _highest_comp_level = 0;
   _highest_osr_comp_level = 0;
   _would_profile = true;
+#ifdef GRAAL
+  _graal_node_count = 0;
+#endif
 
   // Initialize flags and trap history.
   _nof_decompiles = 0;

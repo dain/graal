@@ -56,6 +56,7 @@ ProjectCreatorIncludesPRIVATE=\
         -relativeInclude src\os\windows\vm \
         -relativeInclude src\os_cpu\windows_$(Platform_arch)\vm \
         -relativeInclude src\cpu\$(Platform_arch)\vm \
+        -relativeInclude src\gpu \
         -absoluteInclude $(HOTSPOTBUILDSPACE)/%f/generated \
         -relativeSrcInclude src \
         -absoluteSrcInclude $(HOTSPOTBUILDSPACE) \
@@ -109,7 +110,8 @@ ProjectCreatorIDEOptions=\
         -jdkTargetRoot $(HOTSPOTJDKDIST) \
         -define ALIGN_STACK_FRAMES \
         -define VM_LITTLE_ENDIAN \
-        -prelink  "" "Generating vm.def..." "cd $(HOTSPOTBUILDSPACE)\%f\%b	set HOTSPOTMKSHOME=$(HOTSPOTMKSHOME)	set JAVA_HOME=$(HOTSPOTJDKDIST)	$(HOTSPOTMKSHOME)\sh $(HOTSPOTWORKSPACE)\make\windows\build_vm_def.sh $(BUILD_VM_DEF_FLAG) $(LD_VER)" \
+        -prelink  "" "Generating vm.def..." "cd %o	set HOTSPOTMKSHOME=$(HOTSPOTMKSHOME)	set JAVA_HOME=$(HOTSPOTJDKDIST)	$(HOTSPOTMKSHOME)\sh $(HOTSPOTWORKSPACE)\make\windows\build_vm_def.sh $(BUILD_VM_DEF_FLAG) $(LD_VER)" \
+        -postbuild "" "Building hotspot.exe..." "cd %o	set HOTSPOTMKSHOME=$(HOTSPOTMKSHOME)	nmake -f $(HOTSPOTWORKSPACE)\make\windows\projectfiles\common\Makefile LOCAL_MAKE=$(HOTSPOTBUILDSPACE)\%f\local.make JAVA_HOME=$(HOTSPOTJDKDIST) launcher" \
         -ignoreFile jsig.c \
         -ignoreFile jvmtiEnvRecommended.cpp \
         -ignoreFile jvmtiEnvStub.cpp \
@@ -148,6 +150,11 @@ ProjectCreatorIDEOptionsIgnoreCompiler1=\
  -ignorePath_TARGET tiered \
  -ignorePath_TARGET c1_
 
+ProjectCreatorIDEOptionsIgnoreGraal=\
+ -ignorePath_TARGET src/share/vm/graal \
+ -ignorePath_TARGET graal/generated \
+ -ignorePath_TARGET vm/graal
+
 ProjectCreatorIDEOptionsIgnoreCompiler2=\
  -ignorePath_TARGET compiler2 \
  -ignorePath_TARGET tiered \
@@ -168,14 +175,28 @@ ProjectCreatorIDEOptionsIgnoreCompiler2=\
 ##################################################
 ProjectCreatorIDEOptions=$(ProjectCreatorIDEOptions) \
  -define_compiler1 COMPILER1 \
-$(ProjectCreatorIDEOptionsIgnoreCompiler2:TARGET=compiler1)
+ -define_compiler1 GRAAL \
+ -ignorePath_compiler1 graal/generated \
+ $(ProjectCreatorIDEOptionsIgnoreCompiler2:TARGET=compiler1)
+
+##################################################
+# Graal compiler specific options
+##################################################
+ProjectCreatorIDEOptions=$(ProjectCreatorIDEOptions) \
+ -define_graal COMPILER1 \
+ -define_graal COMPILERGRAAL \
+ -define_graal GRAAL \
+ $(ProjectCreatorIDEOptionsIgnoreCompiler2:TARGET=graal)
 
 ##################################################
 # Server(C2) compiler specific options
 ##################################################
 #NOTE! This list must be kept in sync with GENERATED_NAMES in adlc.make.
 ProjectCreatorIDEOptions=$(ProjectCreatorIDEOptions) \
+ -define_compiler2 COMPILER1 \
  -define_compiler2 COMPILER2 \
+ -define_compiler2 GRAAL \
+ -ignorePath_compiler2 graal/generated \
  -additionalFile_compiler2 $(Platform_arch_model).ad \
  -additionalFile_compiler2 ad_$(Platform_arch_model).cpp \
  -additionalFile_compiler2 ad_$(Platform_arch_model).hpp \
@@ -187,8 +208,7 @@ ProjectCreatorIDEOptions=$(ProjectCreatorIDEOptions) \
  -additionalFile_compiler2 ad_$(Platform_arch_model)_peephole.cpp \
  -additionalFile_compiler2 ad_$(Platform_arch_model)_pipeline.cpp \
  -additionalFile_compiler2 adGlobals_$(Platform_arch_model).hpp \
- -additionalFile_compiler2 dfa_$(Platform_arch_model).cpp \
- $(ProjectCreatorIDEOptionsIgnoreCompiler1:TARGET=compiler2)
+ -additionalFile_compiler2 dfa_$(Platform_arch_model).cpp
 
 # Add in the jvmti (JSR-163) options
 # NOTE: do not pull in jvmtiEnvRecommended.cpp.  This file is generated

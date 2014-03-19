@@ -237,7 +237,7 @@ void NMethodSweeper::mark_active_nmethods() {
 void NMethodSweeper::possibly_sweep() {
   assert(JavaThread::current()->thread_state() == _thread_in_vm, "must run in vm mode");
   // Only compiler threads are allowed to sweep
-  if (!MethodFlushing || !sweep_in_progress() || !Thread::current()->is_Compiler_thread()) {
+  if (!MethodFlushing || !sweep_in_progress() NOT_GRAAL(|| !Thread::current()->is_Compiler_thread()) GRAAL_ONLY(|| !Thread::current()->is_Java_thread())) {
     return;
   }
 
@@ -454,10 +454,18 @@ void NMethodSweeper::possibly_enable_sweeper() {
 
 class NMethodMarker: public StackObj {
  private:
+#ifdef GRAAL
+  JavaThread* _thread;
+#else
   CompilerThread* _thread;
+#endif
  public:
   NMethodMarker(nmethod* nm) {
+#ifdef GRAAL
+    _thread = JavaThread::current();
+#else
     _thread = CompilerThread::current();
+#endif
     if (!nm->is_zombie() && !nm->is_unloaded()) {
       // Only expose live nmethods for scanning
       _thread->set_scanned_nmethod(nm);

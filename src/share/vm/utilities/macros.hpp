@@ -166,7 +166,7 @@
 
 // COMPILER1 variant
 #ifdef COMPILER1
-#ifdef COMPILER2
+#if defined(COMPILER2) || defined(COMPILERGRAAL)
   #define TIERED
 #endif
 #define COMPILER1_PRESENT(code) code
@@ -183,10 +183,32 @@
 #define NOT_COMPILER2(code) code
 #endif // COMPILER2
 
+#ifdef COMPILERGRAAL
+#define COMPILERGRAAL_PRESENT(code) code
+#define NOT_COMPILERGRAAL(code)
+#else // COMPILERGRAAL
+#define COMPILERGRAAL_PRESENT(code)
+#define NOT_COMPILERGRAAL(code) code
+#endif // COMPILERGRAAL
+
+#if defined(COMPILERGRAAL) && !defined(GRAAL)
+#error "COMPILERGRAAL needs GRAAL to be defined"
+#endif
+
+#ifdef GRAAL
+#define GRAAL_ONLY(code) code
+#define NOT_GRAAL(code)
+#define IS_GRAAL_DEFINED true
+#else // GRAAL
+#define GRAAL_ONLY(code)
+#define NOT_GRAAL(code) code
+#define IS_GRAAL_DEFINED false
+#endif // GRAAL
+
 #ifdef TIERED
 #define TIERED_ONLY(code) code
 #define NOT_TIERED(code)
-#else
+#else // TIERED
 #define TIERED_ONLY(code)
 #define NOT_TIERED(code) code
 #endif // TIERED

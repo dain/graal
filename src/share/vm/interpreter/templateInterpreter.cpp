@@ -288,15 +288,15 @@ void TemplateInterpreterGenerator::generate_all() {
     for (int i = 0; i < Interpreter::number_of_deopt_entries; i++) {
       Interpreter::_deopt_entry[i] =
         EntryPoint(
-          generate_deopt_entry_for(itos, i),
-          generate_deopt_entry_for(itos, i),
-          generate_deopt_entry_for(itos, i),
-          generate_deopt_entry_for(atos, i),
-          generate_deopt_entry_for(itos, i),
-          generate_deopt_entry_for(ltos, i),
-          generate_deopt_entry_for(ftos, i),
-          generate_deopt_entry_for(dtos, i),
-          generate_deopt_entry_for(vtos, i)
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(itos, i),
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(itos, i),
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(itos, i),
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(atos, i),
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(itos, i),
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(ltos, i),
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(ftos, i),
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(dtos, i),
+          ((InterpreterGenerator*)this)->generate_deopt_entry_for(vtos, i)
         );
     }
   }
@@ -369,6 +369,9 @@ void TemplateInterpreterGenerator::generate_all() {
   method_entry(zerolocals)
   method_entry(zerolocals_synchronized)
   method_entry(empty)
+#ifdef GRAAL
+  method_entry(execute_compiled_method)
+#endif
   method_entry(accessor)
   method_entry(abstract)
   method_entry(java_lang_math_sin  )

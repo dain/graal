@@ -35,10 +35,12 @@ import org.openide.util.actions.CallableSystemAction;
  */
 public final class SaveFilterSettingsAction extends CallableSystemAction {
 
+    @Override
     public void performAction() {
         FilterTopComponent.findInstance().addFilterSetting();
     }
 
+    @Override
     public String getName() {
         return NbBundle.getMessage(SaveFilterSettingsAction.class, "CTL_SaveFilterSettingsAction");
     }
@@ -49,9 +51,10 @@ public final class SaveFilterSettingsAction extends CallableSystemAction {
     }
 
     public SaveFilterSettingsAction() {
-        putValue(Action.SHORT_DESCRIPTION, "Create new filter profile");
+        putValue(Action.SHORT_DESCRIPTION, "Save filter configuration as profile...");
     }
 
+    @Override
     public HelpCtx getHelpCtx() {
         return HelpCtx.DEFAULT_HELP;
     }
@@ -63,6 +66,6 @@ public final class SaveFilterSettingsAction extends CallableSystemAction {
 
     @Override
     protected String iconResource() {
-        return "com/sun/hotspot/igv/filterwindow/images/add.gif";
+        return "com/sun/hotspot/igv/filterwindow/images/add.png";
     }
 }

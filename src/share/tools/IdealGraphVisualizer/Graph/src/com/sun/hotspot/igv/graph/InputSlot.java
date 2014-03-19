@@ -27,7 +27,7 @@ import java.awt.Point;
 import java.util.List;
 
 /**
- *
+ * 
  * @author Thomas Wuerthinger
  */
 public class InputSlot extends Slot {
@@ -36,18 +36,24 @@ public class InputSlot extends Slot {
         super(figure, wantedIndex);
     }
 
+    @Override
     public int getPosition() {
         return getFigure().getInputSlots().indexOf(this);
     }
 
+    @Override
     public void setPosition(int position) {
         List<InputSlot> inputSlots = getFigure().inputSlots;
         InputSlot s = inputSlots.remove(position);
         inputSlots.add(position, s);
     }
-
+    @Override
     public Point getRelativePosition() {
-        return new Point(getFigure().getWidth() * (getPosition() + 1) / (getFigure().getInputSlots().size() + 1), Figure.SLOT_WIDTH - Figure.SLOT_START);
+        int gap = getFigure().getWidth() - Figure.getSlotsWidth(getFigure().getInputSlots());
+        double gapRatio = (double)gap / (double)(getFigure().getInputSlots().size() + 1);
+        int gapAmount = (int)((getPosition() + 1)*gapRatio);
+        return new Point(gapAmount + Figure.getSlotsWidth(Figure.getAllBefore(getFigure().getInputSlots(), this)) + getWidth()/2, -Figure.SLOT_START);
+        //return new Point((getFigure().getWidth() / (getFigure().getInputSlots().size() * 2)) * (getPosition() * 2 + 1), -Figure.SLOT_START);
     }
 
     @Override

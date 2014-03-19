@@ -103,6 +103,9 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/hashtable.hpp"
 #include "utilities/macros.hpp"
+#ifdef GRAAL
+# include "graal/vmStructs_graal.hpp"
+#endif
 #ifdef TARGET_ARCH_x86
 # include "vmStructs_x86.hpp"
 #endif
@@ -392,9 +395,10 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
   nonstatic_field(ObjArrayKlass,               _element_klass,                                Klass*)                                \
   nonstatic_field(ObjArrayKlass,               _bottom_klass,                                 Klass*)                                \
   volatile_nonstatic_field(Symbol,             _refcount,                                     short)                                 \
-  nonstatic_field(Symbol,                      _identity_hash,                                int)                                   \
   nonstatic_field(Symbol,                      _length,                                       unsigned short)                        \
+  nonstatic_field(Symbol,                      _identity_hash,                                int)                                   \
   unchecked_nonstatic_field(Symbol,            _body,                                         sizeof(jbyte)) /* NOTE: no type */     \
+  nonstatic_field(Symbol,                      _body[0],                                      jbyte)                                 \
   nonstatic_field(TypeArrayKlass,              _max_length,                                   int)                                   \
                                                                                                                                      \
   /***********************/                                                                                                          \
@@ -812,6 +816,34 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
      static_field(StubRoutines,                _cipherBlockChaining_decryptAESCrypt,          address)                               \
      static_field(StubRoutines,                _updateBytesCRC32,                             address)                               \
      static_field(StubRoutines,                _crc_table_adr,                                address)                               \
+     static_field(StubRoutines,                _jbyte_arraycopy,                              address)                               \
+     static_field(StubRoutines,                _jshort_arraycopy,                             address)                               \
+     static_field(StubRoutines,                _jint_arraycopy,                               address)                               \
+     static_field(StubRoutines,                _jlong_arraycopy,                              address)                               \
+     static_field(StubRoutines,                _oop_arraycopy,                                address)                               \
+     static_field(StubRoutines,                _oop_arraycopy_uninit,                         address)                               \
+     static_field(StubRoutines,                _jbyte_disjoint_arraycopy,                     address)                               \
+     static_field(StubRoutines,                _jshort_disjoint_arraycopy,                    address)                               \
+     static_field(StubRoutines,                _jint_disjoint_arraycopy,                      address)                               \
+     static_field(StubRoutines,                _jlong_disjoint_arraycopy,                     address)                               \
+     static_field(StubRoutines,                _oop_disjoint_arraycopy,                       address)                               \
+     static_field(StubRoutines,                _oop_disjoint_arraycopy_uninit,                address)                               \
+     static_field(StubRoutines,                _arrayof_jbyte_arraycopy,                      address)                               \
+     static_field(StubRoutines,                _arrayof_jshort_arraycopy,                     address)                               \
+     static_field(StubRoutines,                _arrayof_jint_arraycopy,                       address)                               \
+     static_field(StubRoutines,                _arrayof_jlong_arraycopy,                      address)                               \
+     static_field(StubRoutines,                _arrayof_oop_arraycopy,                        address)                               \
+     static_field(StubRoutines,                _arrayof_oop_arraycopy_uninit,                 address)                               \
+     static_field(StubRoutines,                _arrayof_jbyte_disjoint_arraycopy,             address)                               \
+     static_field(StubRoutines,                _arrayof_jshort_disjoint_arraycopy,            address)                               \
+     static_field(StubRoutines,                _arrayof_jint_disjoint_arraycopy,              address)                               \
+     static_field(StubRoutines,                _arrayof_jlong_disjoint_arraycopy,             address)                               \
+     static_field(StubRoutines,                _arrayof_oop_disjoint_arraycopy,               address)                               \
+     static_field(StubRoutines,                _arrayof_oop_disjoint_arraycopy_uninit,        address)                               \
+     static_field(StubRoutines,                _checkcast_arraycopy,                          address)                               \
+     static_field(StubRoutines,                _checkcast_arraycopy_uninit,                   address)                               \
+     static_field(StubRoutines,                _unsafe_arraycopy,                             address)                               \
+     static_field(StubRoutines,                _generic_arraycopy,                            address)                               \
                                                                                                                                      \
   /*****************/                                                                                                                \
   /* SharedRuntime */                                                                                                                \
@@ -879,7 +911,18 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
   nonstatic_field(nmethod,             _exception_cache,                              ExceptionCache*)                       \
   nonstatic_field(nmethod,             _marked_for_deoptimization,                    bool)                                  \
                                                                                                                              \
-  unchecked_c2_static_field(Deoptimization,         _trap_reason_name,                   void*)                              \
+  unchecked_c2_static_field(Deoptimization, _trap_reason_name,                        void*)                                 \
+                                                                                                                             \
+  nonstatic_field(Deoptimization::UnrollBlock, _size_of_deoptimized_frame,            int)                                   \
+  nonstatic_field(Deoptimization::UnrollBlock, _caller_adjustment,                    int)                                   \
+  nonstatic_field(Deoptimization::UnrollBlock, _number_of_frames,                     int)                                   \
+  nonstatic_field(Deoptimization::UnrollBlock, _total_frame_sizes,                    int)                                   \
+  nonstatic_field(Deoptimization::UnrollBlock, _frame_sizes,                          intptr_t*)                             \
+  nonstatic_field(Deoptimization::UnrollBlock, _frame_pcs,                            address*)                              \
+  nonstatic_field(Deoptimization::UnrollBlock, _register_block,                       intptr_t*)                             \
+  nonstatic_field(Deoptimization::UnrollBlock, _return_type,                          BasicType)                             \
+  nonstatic_field(Deoptimization::UnrollBlock, _initial_info,                         intptr_t)                              \
+  nonstatic_field(Deoptimization::UnrollBlock, _caller_actual_parameters,             int)                                   \
                                                                                                                                      \
   /********************************/                                                                                                 \
   /* JavaCalls (NOTE: incomplete) */                                                                                                 \
@@ -1289,7 +1332,6 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
   nonstatic_field(AdaptiveFreeList<FreeChunk>, _size,                                        size_t)                                 \
   nonstatic_field(AdaptiveFreeList<FreeChunk>, _count,                                       ssize_t)
 
-
 //--------------------------------------------------------------------------------
 // VM_TYPES
 //
@@ -1660,6 +1702,7 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
   declare_toplevel_type(Dependencies)                                     \
   declare_toplevel_type(CompileTask)                                      \
   declare_toplevel_type(Deoptimization)                                   \
+  declare_toplevel_type(Deoptimization::UnrollBlock)                      \
                                                                           \
   /************************/                                              \
   /* OopMap and OopMapSet */                                              \
@@ -2291,6 +2334,36 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
   declare_constant(JVM_ACC_PROMOTED_FLAGS)                                \
   declare_constant(JVM_ACC_FIELD_ACCESS_WATCHED)                          \
   declare_constant(JVM_ACC_FIELD_MODIFICATION_WATCHED)                    \
+  declare_constant(JVM_ACC_FIELD_INTERNAL)                                \
+  declare_constant(JVM_ACC_FIELD_STABLE)                                  \
+  declare_constant(JVM_ACC_FIELD_HAS_GENERIC_SIGNATURE)                   \
+                                                                          \
+  declare_constant(JVM_CONSTANT_Utf8)                                     \
+  declare_constant(JVM_CONSTANT_Unicode)                                  \
+  declare_constant(JVM_CONSTANT_Integer)                                  \
+  declare_constant(JVM_CONSTANT_Float)                                    \
+  declare_constant(JVM_CONSTANT_Long)                                     \
+  declare_constant(JVM_CONSTANT_Double)                                   \
+  declare_constant(JVM_CONSTANT_Class)                                    \
+  declare_constant(JVM_CONSTANT_String)                                   \
+  declare_constant(JVM_CONSTANT_Fieldref)                                 \
+  declare_constant(JVM_CONSTANT_Methodref)                                \
+  declare_constant(JVM_CONSTANT_InterfaceMethodref)                       \
+  declare_constant(JVM_CONSTANT_NameAndType)                              \
+  declare_constant(JVM_CONSTANT_MethodHandle)                             \
+  declare_constant(JVM_CONSTANT_MethodType)                               \
+  declare_constant(JVM_CONSTANT_InvokeDynamic)                            \
+  declare_constant(JVM_CONSTANT_ExternalMax)                              \
+                                                                          \
+  declare_constant(JVM_CONSTANT_Invalid)                                  \
+  declare_constant(JVM_CONSTANT_InternalMin)                              \
+  declare_constant(JVM_CONSTANT_UnresolvedClass)                          \
+  declare_constant(JVM_CONSTANT_ClassIndex)                               \
+  declare_constant(JVM_CONSTANT_StringIndex)                              \
+  declare_constant(JVM_CONSTANT_UnresolvedClassInError)                   \
+  declare_constant(JVM_CONSTANT_MethodHandleInError)                      \
+  declare_constant(JVM_CONSTANT_MethodTypeInError)                        \
+  declare_constant(JVM_CONSTANT_InternalMax)                              \
                                                                           \
   /*****************************/                                         \
   /* Thread::SuspendFlags enum */                                         \
@@ -2321,6 +2394,7 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
   /******************************/                                        \
                                                                           \
   declare_constant(Klass::_primary_super_limit)                           \
+  declare_constant(Klass::_lh_neutral_value)                              \
   declare_constant(Klass::_lh_instance_slow_path_bit)                     \
   declare_constant(Klass::_lh_log2_element_size_shift)                    \
   declare_constant(Klass::_lh_log2_element_size_mask)                     \
@@ -2358,6 +2432,19 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
   /**************/                                                        \
                                                                           \
   declare_constant(DataLayout::cell_size)                                 \
+  declare_constant(DataLayout::no_tag)                                    \
+  declare_constant(DataLayout::bit_data_tag)                              \
+  declare_constant(DataLayout::counter_data_tag)                          \
+  declare_constant(DataLayout::jump_data_tag)                             \
+  declare_constant(DataLayout::receiver_type_data_tag)                    \
+  declare_constant(DataLayout::virtual_call_data_tag)                     \
+  declare_constant(DataLayout::ret_data_tag)                              \
+  declare_constant(DataLayout::branch_data_tag)                           \
+  declare_constant(DataLayout::multi_branch_data_tag)                     \
+  declare_constant(DataLayout::arg_info_data_tag)                         \
+  declare_constant(DataLayout::call_type_data_tag)                        \
+  declare_constant(DataLayout::virtual_call_type_data_tag)                \
+  declare_constant(DataLayout::parameters_type_data_tag)                  \
                                                                           \
   /*************************************/                                 \
   /* InstanceKlass enum                */                                 \
@@ -2411,13 +2498,14 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
                                                                           \
   declare_constant(Symbol::max_symbol_length)                             \
                                                                           \
-  /*************************************************/                     \
-  /* ConstantPool* layout enum for InvokeDynamic */                     \
-  /*************************************************/                     \
+  /***********************************************/                       \
+  /* ConstantPool* layout enum for InvokeDynamic */                       \
+  /***********************************************/                       \
                                                                           \
-  declare_constant(ConstantPool::_indy_bsm_offset)                 \
-  declare_constant(ConstantPool::_indy_argc_offset)                \
-  declare_constant(ConstantPool::_indy_argv_offset)                \
+  declare_constant(ConstantPool::_indy_bsm_offset)                        \
+  declare_constant(ConstantPool::_indy_argc_offset)                       \
+  declare_constant(ConstantPool::_indy_argv_offset)                       \
+  declare_constant(ConstantPool::CPCACHE_INDEX_TAG)                       \
                                                                           \
   /********************************/                                      \
   /* ConstantPoolCacheEntry enums */                                      \
@@ -2500,6 +2588,18 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
   declare_constant(Deoptimization::Action_make_not_compilable)            \
   declare_constant(Deoptimization::Action_LIMIT)                          \
                                                                           \
+  declare_constant(Deoptimization::Unpack_deopt)                          \
+  declare_constant(Deoptimization::Unpack_exception)                      \
+  declare_constant(Deoptimization::Unpack_uncommon_trap)                  \
+  declare_constant(Deoptimization::Unpack_reexecute)                      \
+                                                                          \
+  declare_constant(Deoptimization::_action_bits)                          \
+  declare_constant(Deoptimization::_reason_bits)                          \
+  declare_constant(Deoptimization::_debug_id_bits)                        \
+  declare_constant(Deoptimization::_action_shift)                         \
+  declare_constant(Deoptimization::_reason_shift)                         \
+  declare_constant(Deoptimization::_debug_id_shift)                       \
+                                                                          \
   /*********************/                                                 \
   /* Matcher (C2 only) */                                                 \
   /*********************/                                                 \
@@ -2512,6 +2612,18 @@ typedef TwoOopHashtable<Symbol*, mtClass>     SymbolTwoOopHashtable;
                                                                           \
   declare_constant(InvocationEntryBci)                                    \
   declare_constant(InvalidOSREntryBci)                                    \
+                                                                          \
+  /*************/                                                         \
+  /* CompLevel */                                                         \
+  /*************/                                                         \
+                                                                          \
+  declare_constant(CompLevel_any)                                         \
+  declare_constant(CompLevel_all)                                         \
+  declare_constant(CompLevel_none)                                        \
+  declare_constant(CompLevel_simple)                                      \
+  declare_constant(CompLevel_limited_profile)                             \
+  declare_constant(CompLevel_full_profile)                                \
+  declare_constant(CompLevel_full_optimization)                           \
                                                                           \
   /***************/                                                       \
   /* OopMapValue */                                                       \
@@ -2895,6 +3007,11 @@ VMStructEntry VMStructs::localHotSpotVMStructs[] = {
              GENERATE_C1_UNCHECKED_STATIC_VM_STRUCT_ENTRY,
              GENERATE_C2_UNCHECKED_STATIC_VM_STRUCT_ENTRY)
 
+#ifdef GRAAL
+   VM_STRUCTS_GRAAL(GENERATE_NONSTATIC_VM_STRUCT_ENTRY,
+                    GENERATE_STATIC_VM_STRUCT_ENTRY)
+#endif
+
 #if INCLUDE_ALL_GCS
   VM_STRUCTS_PARALLELGC(GENERATE_NONSTATIC_VM_STRUCT_ENTRY,
                         GENERATE_STATIC_VM_STRUCT_ENTRY)
@@ -2939,6 +3056,11 @@ VMTypeEntry VMStructs::localHotSpotVMTypes[] = {
            GENERATE_C2_VM_TYPE_ENTRY,
            GENERATE_C2_TOPLEVEL_VM_TYPE_ENTRY)
 
+#ifdef GRAAL
+  VM_TYPES_GRAAL(GENERATE_VM_TYPE_ENTRY,
+                 GENERATE_TOPLEVEL_VM_TYPE_ENTRY)
+#endif
+
 #if INCLUDE_ALL_GCS
   VM_TYPES_PARALLELGC(GENERATE_VM_TYPE_ENTRY,
                       GENERATE_TOPLEVEL_VM_TYPE_ENTRY)
@@ -2980,6 +3102,11 @@ VMIntConstantEntry VMStructs::localHotSpotVMIntConstants[] = {
                    GENERATE_C1_VM_INT_CONSTANT_ENTRY,
                    GENERATE_C2_VM_INT_CONSTANT_ENTRY,
                    GENERATE_C2_PREPROCESSOR_VM_INT_CONSTANT_ENTRY)
+
+#ifdef GRAAL
+  VM_INT_CONSTANTS_GRAAL(GENERATE_VM_INT_CONSTANT_ENTRY,
+                         GENERATE_PREPROCESSOR_VM_INT_CONSTANT_ENTRY)
+#endif
 
 #if INCLUDE_ALL_GCS
   VM_INT_CONSTANTS_CMS(GENERATE_VM_INT_CONSTANT_ENTRY)

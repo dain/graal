@@ -116,6 +116,12 @@ class nmethod : public CodeBlob {
   int       _entry_bci;        // != InvocationEntryBci if this nmethod is an on-stack replacement method
   jmethodID _jmethod_id;       // Cache of method()->jmethod_id()
 
+#ifdef GRAAL
+  // Needed to keep nmethods alive that are not the default nmethod for the associated Method.
+  oop       _graal_installed_code;
+  oop       _speculation_log;
+#endif
+
   // To support simple linked-list chaining of nmethods:
   nmethod*  _osr_link;         // from InstanceKlass::osr_nmethods_head
   nmethod*  _scavenge_root_link; // from CodeCache::scavenge_root_nmethods
@@ -176,6 +182,7 @@ class nmethod : public CodeBlob {
   unsigned int _has_method_handle_invokes:1; // Has this method MethodHandle invokes?
   unsigned int _lazy_critical_native:1;      // Lazy JNI critical native
   unsigned int _has_wide_vectors:1;          // Preserve wide vectors at safepoints
+  unsigned int _external_method:1;           // Set for GPU methods
 
   // Protected by Patching_lock
   volatile unsigned char _state;             // {alive, not_entrant, zombie, unloaded}
@@ -268,7 +275,12 @@ class nmethod : public CodeBlob {
           ExceptionHandlerTable* handler_table,
           ImplicitExceptionTable* nul_chk_table,
           AbstractCompiler* compiler,
-          int comp_level);
+          int comp_level
+#ifdef GRAAL
+          , Handle installed_code,
+          Handle speculation_log
+#endif
+          );
 
   // helper methods
   void* operator new(size_t size, int nmethod_size) throw();
@@ -304,7 +316,12 @@ class nmethod : public CodeBlob {
                               ExceptionHandlerTable* handler_table,
                               ImplicitExceptionTable* nul_chk_table,
                               AbstractCompiler* compiler,
-                              int comp_level);
+                              int comp_level
+#ifdef GRAAL
+                              , Handle installed_code = Handle(),
+                              Handle speculation_log = Handle()
+#endif
+  );
 
   static nmethod* new_native_nmethod(methodHandle method,
                                      int compile_id,
@@ -343,6 +360,7 @@ class nmethod : public CodeBlob {
   bool is_osr_method() const                      { return _entry_bci != InvocationEntryBci; }
 
   bool is_compiled_by_c1() const;
+  bool is_compiled_by_graal() const;
   bool is_compiled_by_c2() const;
   bool is_compiled_by_shark() const;
 
@@ -372,7 +390,7 @@ class nmethod : public CodeBlob {
   address handler_table_begin   () const          { return           header_begin() + _handler_table_offset ; }
   address handler_table_end     () const          { return           header_begin() + _nul_chk_table_offset ; }
   address nul_chk_table_begin   () const          { return           header_begin() + _nul_chk_table_offset ; }
-  address nul_chk_table_end     () const          { return           header_begin() + _nmethod_end_offset   ; }
+  address nul_chk_table_end     () const          { return           header_begin() + _nmethod_end_offset;    }
 
   // Sizes
   int consts_size       () const                  { return            consts_end       () -            consts_begin       (); }
@@ -446,6 +464,9 @@ class nmethod : public CodeBlob {
 
   bool  has_method_handle_invokes() const         { return _has_method_handle_invokes; }
   void  set_has_method_handle_invokes(bool z)     { _has_method_handle_invokes = z; }
+
+  bool  is_external_method() const                { return _external_method; }
+  void  set_external_method(bool z)               { _external_method = z; }
 
   bool  is_lazy_critical_native() const           { return _lazy_critical_native; }
   void  set_lazy_critical_native(bool z)          { _lazy_critical_native = z; }
@@ -563,6 +584,13 @@ public:
   // Evolution support. We make old (discarded) compiled methods point to new Method*s.
   void set_method(Method* method) { _method = method; }
 
+#ifdef GRAAL
+  oop graal_installed_code() { return _graal_installed_code ; }
+  void set_graal_installed_code(oop installed_code) { _graal_installed_code = installed_code;  }
+  oop speculation_log() { return _speculation_log ; }
+  void set_speculation_log(oop speculation_log) { _speculation_log = speculation_log;  }
+#endif
+
   // GC support
   void do_unloading(BoolObjectClosure* is_alive, bool unloading_occurred);
   bool can_unload(BoolObjectClosure* is_alive, oop* root, bool unloading_occurred);
@@ -612,7 +640,10 @@ public:
   // Deopt
   // Return true is the PC is one would expect if the frame is being deopted.
   bool is_deopt_pc      (address pc) { return is_deopt_entry(pc) || is_deopt_mh_entry(pc); }
-  bool is_deopt_entry   (address pc) { return pc == deopt_handler_begin(); }
+
+  // (thomaswue) When using graal, the address might be off by 5 (because this is the size of the call instruction.
+  // (thomaswue) TODO: Replace this by a more general mechanism.
+  bool is_deopt_entry   (address pc) { return pc == deopt_handler_begin() GRAAL_ONLY( || pc == deopt_handler_begin() + 5); }
   bool is_deopt_mh_entry(address pc) { return pc == deopt_mh_handler_begin(); }
   // Accessor/mutator for the original pc of a frame before a frame was deopted.
   address get_original_pc(const frame* fr) { return *orig_pc_addr(fr); }

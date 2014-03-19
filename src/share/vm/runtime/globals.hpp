@@ -129,6 +129,20 @@
 # include "c1_globals_bsd.hpp"
 #endif
 #endif
+#ifdef COMPILERGRAAL 
+#ifdef TARGET_ARCH_x86
+# include "graalGlobals_x86.hpp"
+#endif
+#ifdef TARGET_ARCH_sparc
+# include "graalGlobals_sparc.hpp"
+#endif
+#ifdef TARGET_ARCH_arm
+# include "graalGlobals_arm.hpp"
+#endif
+#ifdef TARGET_ARCH_ppc
+# include "graalGlobals_ppc.hpp"
+#endif
+#endif // COMPILERGRAAL
 #ifdef COMPILER2
 #ifdef TARGET_ARCH_x86
 # include "c2_globals_x86.hpp"
@@ -164,7 +178,7 @@
 #endif
 #endif
 
-#if !defined(COMPILER1) && !defined(COMPILER2) && !defined(SHARK)
+#if !defined(COMPILER1) && !defined(COMPILER2) && !defined(SHARK) && !defined(COMPILERGRAAL)
 define_pd_global(bool, BackgroundCompilation,        false);
 define_pd_global(bool, UseTLAB,                      false);
 define_pd_global(bool, CICompileOSR,                 false);
@@ -239,6 +253,7 @@ struct Flag {
     KIND_SHARK              = 1 << 15,
     KIND_LP64_PRODUCT       = 1 << 16,
     KIND_COMMERCIAL         = 1 << 17,
+    KIND_GRAAL              = 1 << 18,
 
     KIND_MASK = ~VALUE_ORIGIN_MASK
   };
@@ -980,6 +995,9 @@ class CommandLineFlags {
                                                                             \
   diagnostic(ccstr, PrintAssemblyOptions, NULL,                             \
           "Print options string passed to disassembler.so")                 \
+                                                                            \
+  product(bool, PrintNMethodStatistics, false,                              \
+          "Print a summary statistic for the generated nmethods")           \
                                                                             \
   diagnostic(bool, PrintNMethods, false,                                    \
           "Print assembly code for nmethods when generated")                \
@@ -2909,8 +2927,11 @@ class CommandLineFlags {
           "Prefetch instruction to prefetch ahead of allocation pointer")   \
                                                                             \
   /* deoptimization */                                                      \
-  develop(bool, TraceDeoptimization, false,                                 \
+  product(bool, TraceDeoptimization, false,                                 \
           "Trace deoptimization")                                           \
+                                                                            \
+  product(bool, PrintDeoptimizationDetails, false,                          \
+          "Print more information about deoptimization")                    \
                                                                             \
   develop(bool, DebugDeoptimization, false,                                 \
           "Tracing various information while debugging deoptimization")     \
@@ -3069,6 +3090,9 @@ class CommandLineFlags {
                                                                             \
   product(intx, TypeProfileWidth,     2,                                    \
           "Number of receiver types to record in call/cast profile")        \
+                                                                            \
+  product_pd(intx, MethodProfileWidth,                                      \
+          "number of methods to record in call profile")                    \
                                                                             \
   develop(intx, BciProfileWidth,      2,                                    \
           "Number of return bci's to record in ret profile")                \

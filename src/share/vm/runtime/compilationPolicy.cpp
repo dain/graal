@@ -45,6 +45,9 @@
 #include "runtime/vm_operations.hpp"
 #include "utilities/events.hpp"
 #include "utilities/globalDefinitions.hpp"
+#ifdef GRAAL
+#include "runtime/gpu.hpp"
+#endif
 
 CompilationPolicy* CompilationPolicy::_policy;
 elapsedTimer       CompilationPolicy::_accumulated_time;
@@ -101,6 +104,7 @@ bool CompilationPolicy::must_be_compiled(methodHandle m, int comp_level) {
   if (ReplayCompiles) return false;
 
   if (m->has_compiled_code()) return false;       // already compiled
+
   if (!can_be_compiled(m, comp_level)) return false;
 
   return !UseInterpreter ||                                              // must compile all methods

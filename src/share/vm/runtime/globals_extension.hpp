@@ -57,6 +57,12 @@
 #define C1_PD_DEVELOP_FLAG_MEMBER(type, name, doc)               FLAG_MEMBER(name),
 #define C1_NOTPRODUCT_FLAG_MEMBER(type, name, value, doc)        FLAG_MEMBER(name),
 
+#define GRAAL_PRODUCT_FLAG_MEMBER(type, name, value, doc)           FLAG_MEMBER(name),
+#define GRAAL_PD_PRODUCT_FLAG_MEMBER(type, name, doc)               FLAG_MEMBER(name),
+#define GRAAL_DEVELOP_FLAG_MEMBER(type, name, value, doc)           FLAG_MEMBER(name),
+#define GRAAL_PD_DEVELOP_FLAG_MEMBER(type, name, doc)               FLAG_MEMBER(name),
+#define GRAAL_NOTPRODUCT_FLAG_MEMBER(type, name, value, doc)        FLAG_MEMBER(name),
+
 #define C2_PRODUCT_FLAG_MEMBER(type, name, value, doc)           FLAG_MEMBER(name),
 #define C2_PD_PRODUCT_FLAG_MEMBER(type, name, doc)               FLAG_MEMBER(name),
 #define C2_DIAGNOSTIC_FLAG_MEMBER(type, name, value, doc)        FLAG_MEMBER(name),
@@ -108,6 +114,12 @@ typedef enum {
 #define C1_DEVELOP_FLAG_MEMBER_WITH_TYPE(type, name, value, doc)           FLAG_MEMBER_WITH_TYPE(name,type),
 #define C1_PD_DEVELOP_FLAG_MEMBER_WITH_TYPE(type, name, doc)               FLAG_MEMBER_WITH_TYPE(name,type),
 #define C1_NOTPRODUCT_FLAG_MEMBER_WITH_TYPE(type, name, value, doc)        FLAG_MEMBER_WITH_TYPE(name,type),
+
+#define GRAAL_PRODUCT_FLAG_MEMBER_WITH_TYPE(type, name, value, doc)           FLAG_MEMBER_WITH_TYPE(name,type),
+#define GRAAL_PD_PRODUCT_FLAG_MEMBER_WITH_TYPE(type, name, doc)               FLAG_MEMBER_WITH_TYPE(name,type),
+#define GRAAL_DEVELOP_FLAG_MEMBER_WITH_TYPE(type, name, value, doc)           FLAG_MEMBER_WITH_TYPE(name,type),
+#define GRAAL_PD_DEVELOP_FLAG_MEMBER_WITH_TYPE(type, name, doc)               FLAG_MEMBER_WITH_TYPE(name,type),
+#define GRAAL_NOTPRODUCT_FLAG_MEMBER_WITH_TYPE(type, name, value, doc)        FLAG_MEMBER_WITH_TYPE(name,type),
 
 #ifdef _LP64
 #define RUNTIME_LP64_PRODUCT_FLAG_MEMBER_WITH_TYPE(type, name, value, doc) FLAG_MEMBER_WITH_TYPE(name,type),
@@ -164,6 +176,13 @@ typedef enum {
           C1_PD_PRODUCT_FLAG_MEMBER_WITH_TYPE,
           C1_DIAGNOSTIC_FLAG_MEMBER_WITH_TYPE,
           C1_NOTPRODUCT_FLAG_MEMBER_WITH_TYPE)
+#endif
+#ifdef GRAAL
+ GRAAL_FLAGS(GRAAL_DEVELOP_FLAG_MEMBER_WITH_TYPE,
+          GRAAL_PD_DEVELOP_FLAG_MEMBER_WITH_TYPE,
+          GRAAL_PRODUCT_FLAG_MEMBER_WITH_TYPE,
+          GRAAL_PD_PRODUCT_FLAG_MEMBER_WITH_TYPE,
+          GRAAL_NOTPRODUCT_FLAG_MEMBER_WITH_TYPE)
 #endif
 #ifdef COMPILER2
  C2_FLAGS(C2_DEVELOP_FLAG_MEMBER_WITH_TYPE,

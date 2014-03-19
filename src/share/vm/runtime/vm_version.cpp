@@ -112,18 +112,23 @@ void Abstract_VM_Version::initialize() {
 
 #ifndef VMTYPE
   #ifdef TIERED
-    #define VMTYPE "Server"
+    #ifdef COMPILERGRAAL
+      #define VMTYPE "Graal"
+    #else // COMPILERGRAAL
+      #define VMTYPE "Server"
+    #endif // COMPILERGRAAL
   #else // TIERED
-  #ifdef ZERO
-  #ifdef SHARK
-    #define VMTYPE "Shark"
-  #else // SHARK
-    #define VMTYPE "Zero"
-  #endif // SHARK
-  #else // ZERO
-     #define VMTYPE COMPILER1_PRESENT("Client")   \
-                    COMPILER2_PRESENT("Server")
-  #endif // ZERO
+    #ifdef ZERO
+      #ifdef SHARK
+        #define VMTYPE "Shark"
+      #else // SHARK
+        #define VMTYPE "Zero"
+      #endif // SHARK
+    #else // ZERO
+      #define VMTYPE COMPILER1_PRESENT("Client")   \
+                     COMPILER2_PRESENT("Server")   \
+                     COMPILERGRAAL_PRESENT("Graal")
+    #endif // ZERO
   #endif // TIERED
 #endif
 

@@ -334,7 +334,6 @@ void LIR_Assembler::check_no_unbound_labels() {
 
 
 void LIR_Assembler::add_debug_info_for_branch(CodeEmitInfo* info) {
-  _masm->code_section()->relocate(pc(), relocInfo::poll_type);
   int pc_offset = code_offset();
   flush_debug_info(pc_offset);
   info->record_debug_info(compilation()->debug_info_recorder(), pc_offset);
@@ -422,7 +421,8 @@ void LIR_Assembler::record_non_safepoint_debug_info() {
     if (s == NULL)  break;
     IRScope* scope = s->scope();
     //Always pass false for reexecute since these ScopeDescs are never used for deopt
-    debug_info->describe_scope(pc_offset, scope->method(), s->bci(), false/*reexecute*/);
+    methodHandle null_mh;
+    debug_info->describe_scope(pc_offset, null_mh, scope->method(), s->bci(), false/*reexecute*/);
   }
 
   debug_info->end_non_safepoint(pc_offset);

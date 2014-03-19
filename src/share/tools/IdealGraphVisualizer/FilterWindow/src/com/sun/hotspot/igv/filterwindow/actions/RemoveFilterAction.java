@@ -23,8 +23,8 @@
  */
 package com.sun.hotspot.igv.filterwindow.actions;
 
-import com.sun.hotspot.igv.filterwindow.FilterTopComponent;
 import com.sun.hotspot.igv.filter.Filter;
+import com.sun.hotspot.igv.filterwindow.FilterTopComponent;
 import javax.swing.Action;
 import javax.swing.JOptionPane;
 import org.openide.nodes.Node;
@@ -39,13 +39,14 @@ import org.openide.windows.WindowManager;
  */
 public final class RemoveFilterAction extends CookieAction {
 
+    @Override
     protected void performAction(Node[] activatedNodes) {
         Object[] options = {"Yes",
             "No",
             "Cancel"
         };
         int n = JOptionPane.showOptionDialog(WindowManager.getDefault().getMainWindow(),
-                "Do you really want to delete " + activatedNodes.length + " filter/s?", "Delete?",
+                "Do you really want to delete " + activatedNodes.length + " filter(s)?", "Delete Filters",
                 JOptionPane.YES_NO_CANCEL_OPTION,
                 JOptionPane.QUESTION_MESSAGE,
                 null,
@@ -59,18 +60,21 @@ public final class RemoveFilterAction extends CookieAction {
         }
     }
 
+    @Override
     protected int mode() {
         return CookieAction.MODE_ALL;
     }
 
+    @Override
     public String getName() {
         return NbBundle.getMessage(RemoveFilterAction.class, "CTL_RemoveFilterAction");
     }
 
     public RemoveFilterAction() {
-        putValue(Action.SHORT_DESCRIPTION, "Remove filter");
+        putValue(Action.SHORT_DESCRIPTION, "Remove selected filter");
     }
 
+    @Override
     protected Class[] cookieClasses() {
         return new Class[]{
             Filter.class
@@ -85,9 +89,10 @@ public final class RemoveFilterAction extends CookieAction {
 
     @Override
     protected String iconResource() {
-        return "com/sun/hotspot/igv/filterwindow/images/minus.gif";
+        return "com/sun/hotspot/igv/filterwindow/images/minus.png";
     }
 
+    @Override
     public HelpCtx getHelpCtx() {
         return HelpCtx.DEFAULT_HELP;
     }

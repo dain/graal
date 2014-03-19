@@ -461,6 +461,17 @@ IRT_ENTRY(address, InterpreterRuntime::exception_handler_for_exception(JavaThrea
     }
   } while (should_repeat == true);
 
+#ifdef GRAAL
+  if (h_method->method_data() != NULL) {
+    ResourceMark rm(thread);
+    ProfileData* pdata = h_method->method_data()->allocate_bci_to_data(current_bci, NULL);
+    if (pdata != NULL && pdata->is_BitData()) {
+      BitData* bit_data = (BitData*) pdata;
+      bit_data->set_exception_seen();
+    }
+  }
+#endif
+
   // notify JVMTI of an exception throw; JVMTI will detect if this is a first
   // time throw or a stack unwinding throw and accordingly notify the debugger
   if (JvmtiExport::can_post_on_exceptions()) {
@@ -516,6 +527,10 @@ IRT_ENTRY(void, InterpreterRuntime::throw_IncompatibleClassChangeError(JavaThrea
   THROW(vmSymbols::java_lang_IncompatibleClassChangeError());
 IRT_END
 
+
+IRT_ENTRY(void, InterpreterRuntime::throw_InvalidInstalledCodeException(JavaThread* thread))
+  THROW(vmSymbols::com_oracle_graal_api_code_InvalidInstalledCodeException());
+IRT_END
 
 //------------------------------------------------------------------------------------------------------------------------
 // Fields
