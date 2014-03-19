@@ -89,11 +89,11 @@ public class PTXLIRGenerator extends LIRGenerator {
         }
     }
 
-    public PTXLIRGenerator(StructuredGraph graph, Providers providers, FrameMap frameMap, CallingConvention cc, LIR lir) {
-        super(graph, providers, frameMap, cc, lir);
-        lir.setSpillMoveFactory(new PTXSpillMoveFactory());
+    public PTXLIRGenerator(StructuredGraph graph, Providers providers, CallingConvention cc, LIRGenerationResult lirGenRes) {
+        super(graph, providers, cc, lirGenRes);
+        lirGenRes.getLIR().setSpillMoveFactory(new PTXSpillMoveFactory());
         int callVariables = cc.getArgumentCount() + (cc.getReturn().equals(Value.ILLEGAL) ? 0 : 1);
-        lir.setFirstVariableNumber(callVariables);
+        lirGenRes.getLIR().setFirstVariableNumber(callVariables);
         nextPredRegNum = 0;
     }
 
@@ -137,7 +137,7 @@ public class PTXLIRGenerator extends LIRGenerator {
     @Override
     public void emitPrologue(StructuredGraph graph) {
         // Need to emit .param directives based on incoming arguments and return value
-        CallingConvention incomingArguments = cc;
+        CallingConvention incomingArguments = getCallingConvention();
         Object returnObject = incomingArguments.getReturn();
         AllocatableValue[] params = incomingArguments.getArguments();
         int argCount = incomingArguments.getArgumentCount();

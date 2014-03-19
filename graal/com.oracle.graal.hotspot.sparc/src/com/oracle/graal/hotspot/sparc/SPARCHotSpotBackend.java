@@ -79,8 +79,8 @@ public class SPARCHotSpotBackend extends HotSpotHostBackend {
     }
 
     @Override
-    public LIRGenerator newLIRGenerator(StructuredGraph graph, Object stub, FrameMap frameMap, CallingConvention cc, LIR lir) {
-        return new SPARCHotSpotLIRGenerator(graph, stub, getProviders(), getRuntime().getConfig(), frameMap, cc, lir);
+    public LIRGenerator newLIRGenerator(StructuredGraph graph, CallingConvention cc, LIRGenerationResult lirGenRes) {
+        return new SPARCHotSpotLIRGenerator(graph, getProviders(), getRuntime().getConfig(), cc, lirGenRes);
     }
 
     /**
@@ -159,10 +159,10 @@ public class SPARCHotSpotBackend extends HotSpotHostBackend {
     }
 
     @Override
-    public CompilationResultBuilder newCompilationResultBuilder(LIRGenerator lirGen, CompilationResult compilationResult, CompilationResultBuilderFactory factory) {
-        SPARCHotSpotLIRGenerator gen = (SPARCHotSpotLIRGenerator) lirGen;
+    public CompilationResultBuilder newCompilationResultBuilder(LIRGenerationResult lirGenRes, CompilationResult compilationResult, CompilationResultBuilderFactory factory) {
+        SPARCHotSpotLIRGenerationResult gen = (SPARCHotSpotLIRGenerationResult) lirGenRes;
         FrameMap frameMap = gen.getFrameMap();
-        assert gen.deoptimizationRescueSlot == null || frameMap.frameNeedsAllocating() : "method that can deoptimize must have a frame";
+        assert gen.getDeoptimizationRescueSlot() == null || frameMap.frameNeedsAllocating() : "method that can deoptimize must have a frame";
 
         Stub stub = gen.getStub();
         Assembler masm = createAssembler(frameMap);
@@ -170,7 +170,7 @@ public class SPARCHotSpotBackend extends HotSpotHostBackend {
         HotSpotFrameContext frameContext = new HotSpotFrameContext(stub != null);
         CompilationResultBuilder crb = factory.createBuilder(getProviders().getCodeCache(), getProviders().getForeignCalls(), frameMap, masm, frameContext, compilationResult);
         crb.setFrameSize(frameMap.frameSize());
-        StackSlot deoptimizationRescueSlot = gen.deoptimizationRescueSlot;
+        StackSlot deoptimizationRescueSlot = gen.getDeoptimizationRescueSlot();
         if (deoptimizationRescueSlot != null && stub == null) {
             crb.compilationResult.setCustomStackAreaOffset(frameMap.offsetForStackSlot(deoptimizationRescueSlot));
         }
@@ -183,6 +183,11 @@ public class SPARCHotSpotBackend extends HotSpotHostBackend {
         }
 
         return crb;
+    }
+
+    @Override
+    public LIRGenerationResult newLIRGenerationResult(LIR lir, FrameMap frameMap, Object stub) {
+        return new LIRGenerationResultBase(lir, frameMap);
     }
 
     @Override
@@ -240,4 +245,5 @@ public class SPARCHotSpotBackend extends HotSpotHostBackend {
     public NativeFunctionInterface getNativeFunctionInterface() {
         throw GraalInternalError.unimplemented("No NativeFunctionInterface of SPARC");
     }
+
 }

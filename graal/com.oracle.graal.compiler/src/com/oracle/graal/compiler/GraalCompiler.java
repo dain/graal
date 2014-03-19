@@ -145,10 +145,10 @@ public class GraalCompiler {
                 throw Debug.handle(e);
             }
             try (TimerCloseable a = BackEnd.start()) {
-                LIRGenerator lirGen = null;
-                lirGen = emitLIR(backend, target, schedule, graph, stub, cc);
-                try (Scope s = Debug.scope("CodeGen", lirGen)) {
-                    emitCode(backend, assumptions, lirGen, compilationResult, installedCodeOwner, factory);
+                LIRGenerationResult lirGenRes = null;
+                lirGenRes = emitLIR(backend, target, schedule, graph, stub, cc);
+                try (Scope s = Debug.scope("CodeGen", lirGenRes)) {
+                    emitCode(backend, assumptions, lirGenRes, compilationResult, installedCodeOwner, factory);
                 } catch (Throwable e) {
                     throw Debug.handle(e);
                 }
@@ -210,18 +210,18 @@ public class GraalCompiler {
 
     }
 
-    private static void emitBlock(LIRGenerator lirGen, Block b, StructuredGraph graph, BlockMap<List<ScheduledNode>> blockMap) {
-        if (lirGen.getLIR().lir(b) == null) {
+    private static void emitBlock(LIRGenerator lirGen, LIRGenerationResult lirGenRes, Block b, StructuredGraph graph, BlockMap<List<ScheduledNode>> blockMap) {
+        if (lirGenRes.getLIR().getLIRforBlock(b) == null) {
             for (Block pred : b.getPredecessors()) {
                 if (!b.isLoopHeader() || !pred.isLoopEnd()) {
-                    emitBlock(lirGen, pred, graph, blockMap);
+                    emitBlock(lirGen, lirGenRes, pred, graph, blockMap);
                 }
             }
             lirGen.doBlock(b, graph, blockMap);
         }
     }
 
-    public static LIRGenerator emitLIR(Backend backend, TargetDescription target, SchedulePhase schedule, StructuredGraph graph, Object stub, CallingConvention cc) {
+    public static LIRGenerationResult emitLIR(Backend backend, TargetDescription target, SchedulePhase schedule, StructuredGraph graph, Object stub, CallingConvention cc) {
         Block[] blocks = schedule.getCFG().getBlocks();
         Block startBlock = schedule.getCFG().getStartBlock();
         assert startBlock != null;
@@ -247,11 +247,12 @@ public class GraalCompiler {
         }
         try (Scope ds = Debug.scope("BackEnd", lir)) {
             FrameMap frameMap = backend.newFrameMap();
-            LIRGenerator lirGen = backend.newLIRGenerator(graph, stub, frameMap, cc, lir);
+            LIRGenerationResult lirGenRes = backend.newLIRGenerationResult(lir, frameMap, stub);
+            LIRGenerator lirGen = backend.newLIRGenerator(graph, cc, lirGenRes);
 
             try (Scope s = Debug.scope("LIRGen", lirGen)) {
                 for (Block b : linearScanOrder) {
-                    emitBlock(lirGen, b, graph, schedule.getBlockToNodesMap());
+                    emitBlock(lirGen, lirGenRes, b, graph, schedule.getBlockToNodesMap());
                 }
                 lirGen.beforeRegisterAllocation();
 
@@ -280,16 +281,16 @@ public class GraalCompiler {
             } catch (Throwable e) {
                 throw Debug.handle(e);
             }
-            return lirGen;
+            return lirGenRes;
         } catch (Throwable e) {
             throw Debug.handle(e);
         }
     }
 
-    public static void emitCode(Backend backend, Assumptions assumptions, LIRGenerator lirGen, CompilationResult compilationResult, ResolvedJavaMethod installedCodeOwner,
+    public static void emitCode(Backend backend, Assumptions assumptions, LIRGenerationResult lirGenRes, CompilationResult compilationResult, ResolvedJavaMethod installedCodeOwner,
                     CompilationResultBuilderFactory factory) {
-        CompilationResultBuilder crb = backend.newCompilationResultBuilder(lirGen, compilationResult, factory);
-        backend.emitCode(crb, lirGen.getLIR(), installedCodeOwner);
+        CompilationResultBuilder crb = backend.newCompilationResultBuilder(lirGenRes, compilationResult, factory);
+        backend.emitCode(crb, lirGenRes.getLIR(), installedCodeOwner);
         crb.finish();
         if (!assumptions.isEmpty()) {
             compilationResult.setAssumptions(assumptions);

@@ -74,7 +74,7 @@ public class AllocatorTest extends GraalCompilerTest {
             this.lir = lir;
 
             for (AbstractBlock<?> block : lir.codeEmittingOrder()) {
-                for (LIRInstruction instr : lir.lir(block)) {
+                for (LIRInstruction instr : lir.getLIRforBlock(block)) {
                     collectStats(instr);
                 }
             }
@@ -120,7 +120,7 @@ public class AllocatorTest extends GraalCompilerTest {
         }
 
         CallingConvention cc = getCallingConvention(getCodeCache(), Type.JavaCallee, graph.method(), false);
-        LIRGenerator lirGen = GraalCompiler.emitLIR(getBackend(), getBackend().getTarget(), schedule, graph, null, cc);
+        LIRGenerationResult lirGen = GraalCompiler.emitLIR(getBackend(), getBackend().getTarget(), schedule, graph, null, cc);
         return new RegisterStats(lirGen.getLIR());
     }
 }

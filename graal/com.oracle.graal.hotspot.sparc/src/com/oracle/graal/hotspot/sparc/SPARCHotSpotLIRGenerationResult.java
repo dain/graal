@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,34 +20,16 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.hotspot.nodes;
-
-import java.util.*;
+package com.oracle.graal.hotspot.sparc;
 
 import com.oracle.graal.api.code.*;
-import com.oracle.graal.api.meta.*;
 import com.oracle.graal.compiler.gen.*;
-import com.oracle.graal.compiler.target.*;
-import com.oracle.graal.nodes.calc.*;
-import com.oracle.graal.word.*;
+import com.oracle.graal.hotspot.stubs.*;
 
-/**
- * Node that is used to maintain a stack based counter of how many locks are currently held.
- */
-public final class MonitorCounterNode extends FloatingNode implements LIRGenResLowerable {
+public interface SPARCHotSpotLIRGenerationResult extends LIRGenerationResult {
 
-    private MonitorCounterNode() {
-        super(null);
-    }
+    StackSlot getDeoptimizationRescueSlot();
 
-    @Override
-    public void generate(LIRGenerator gen, LIRGenerationResult res) {
-        assert graph().getNodes().filter(MonitorCounterNode.class).count() == 1 : "monitor counters not canonicalized to single instance";
-        StackSlot counter = res.getFrameMap().allocateStackSlots(1, new BitSet(0), null);
-        Value result = gen.emitAddress(counter);
-        gen.setResult(this, result);
-    }
+    Stub getStub();
 
-    @NodeIntrinsic(setStampFromReturnType = true)
-    public static native Word counter();
 }
