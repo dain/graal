@@ -108,7 +108,6 @@ class Method : public Metadata {
 #endif
   u2                _method_size;                // size of this object
   u1                _intrinsic_id;               // vmSymbols::intrinsic_id (0 == _none)
-
   // Flags
   enum Flags {
     _jfr_towrite      = 1 << 0,
