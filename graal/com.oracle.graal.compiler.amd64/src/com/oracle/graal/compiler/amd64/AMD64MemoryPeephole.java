@@ -45,10 +45,10 @@ import com.oracle.graal.nodes.spi.*;
 import com.oracle.graal.nodes.type.*;
 
 public class AMD64MemoryPeephole implements MemoryArithmeticLIRLowerer {
-    protected final AMD64LIRGenerator gen;
+    protected final AMD64NodeLIRGenerator gen;
     protected List<ValueNode> deferredNodes;
 
-    protected AMD64MemoryPeephole(AMD64LIRGenerator gen) {
+    protected AMD64MemoryPeephole(AMD64NodeLIRGenerator gen) {
         this.gen = gen;
     }
 
@@ -71,7 +71,7 @@ public class AMD64MemoryPeephole implements MemoryArithmeticLIRLowerer {
 
     protected LIRFrameState getState(Access access) {
         if (access instanceof DeoptimizingNode) {
-            return gen.state((DeoptimizingNode) access);
+            return gen.getLIRGenerator().state((DeoptimizingNode) access);
         }
         return null;
     }
@@ -90,7 +90,7 @@ public class AMD64MemoryPeephole implements MemoryArithmeticLIRLowerer {
             }
         }
         ensureEvaluated(other);
-        return gen.emitBinaryMemory(op, access.nullCheckLocation().getValueKind(), gen.asAllocatable(gen.operand(other)), makeAddress(access), getState(access));
+        return gen.getLIRGenerator().emitBinaryMemory(op, access.nullCheckLocation().getValueKind(), gen.getLIRGeneratorTool().asAllocatable(gen.operand(other)), makeAddress(access), getState(access));
     }
 
     /**
@@ -124,7 +124,7 @@ public class AMD64MemoryPeephole implements MemoryArithmeticLIRLowerer {
         AMD64AddressValue address = makeAddress(access);
         LIRFrameState state = getState(access);
         evaluateDeferred();
-        return gen.emitConvert2MemoryOp(kind, op, address, state);
+        return gen.getLIRGenerator().emitConvert2MemoryOp(kind, op, address, state);
     }
 
     @Override
@@ -248,7 +248,7 @@ public class AMD64MemoryPeephole implements MemoryArithmeticLIRLowerer {
 
     @Override
     public Value emitReinterpretMemory(Stamp stamp, Access access) {
-        PlatformKind to = gen.getPlatformKind(stamp);
+        PlatformKind to = gen.getLIRGenerator().getPlatformKind(stamp);
         Kind from = access.nullCheckLocation().getValueKind();
         assert to != from : "should have been eliminated";
 
@@ -366,7 +366,7 @@ public class AMD64MemoryPeephole implements MemoryArithmeticLIRLowerer {
             memoryKind = Kind.Char;
         }
         evaluateDeferred();
-        return gen.emitZeroExtendMemory(memoryKind, resultBits, makeAddress(access), getState(access));
+        return gen.getLIRGenerator().emitZeroExtendMemory(memoryKind, resultBits, makeAddress(access), getState(access));
     }
 
     public boolean emitIfMemory(IfNode x, Access access) {
@@ -446,7 +446,7 @@ public class AMD64MemoryPeephole implements MemoryArithmeticLIRLowerer {
                 return false;
             }
             ensureEvaluated(other);
-            gen.emitCompareMemoryConOp(kind, makeAddress(access), constant, getState(access));
+            gen.getLIRGenerator().emitCompareMemoryConOp(kind, makeAddress(access), constant, getState(access));
             mirrored = right == access;
         } else {
             if (kind != kind.getStackKind()) {
@@ -460,7 +460,7 @@ public class AMD64MemoryPeephole implements MemoryArithmeticLIRLowerer {
             }
 
             evaluateDeferred();
-            gen.emitCompareRegMemoryOp(kind, gen.operand(other), makeAddress(access), getState(access));
+            gen.getLIRGenerator().emitCompareRegMemoryOp(kind, gen.operand(other), makeAddress(access), getState(access));
             mirrored = left == access;
         }
 

@@ -127,7 +127,7 @@ public final class IfNode extends ControlSplitNode implements Simplifiable, LIRL
     }
 
     @Override
-    public void generate(LIRGeneratorTool gen) {
+    public void generate(NodeLIRGeneratorTool gen) {
         gen.emitIf(this);
     }
 

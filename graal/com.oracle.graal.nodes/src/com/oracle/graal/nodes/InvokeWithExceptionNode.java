@@ -133,7 +133,7 @@ public class InvokeWithExceptionNode extends ControlSplitNode implements Invoke,
     }
 
     @Override
-    public void generate(LIRGeneratorTool gen) {
+    public void generate(NodeLIRGeneratorTool gen) {
         gen.emitInvoke(this);
     }
 
