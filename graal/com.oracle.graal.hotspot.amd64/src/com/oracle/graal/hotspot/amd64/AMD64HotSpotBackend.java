@@ -72,13 +72,18 @@ public class AMD64HotSpotBackend extends HotSpotHostBackend {
     }
 
     @Override
-    public LIRGenerator newLIRGenerator(StructuredGraph graph, CallingConvention cc, LIRGenerationResult lirGenRes) {
-        return new AMD64HotSpotLIRGenerator(graph, getProviders(), getRuntime().getConfig(), cc, lirGenRes);
+    public LIRGenerator newLIRGenerator(CallingConvention cc, LIRGenerationResult lirGenRes) {
+        return new AMD64HotSpotLIRGenerator(getProviders(), getRuntime().getConfig(), cc, lirGenRes);
     }
 
     @Override
     public LIRGenerationResult newLIRGenerationResult(LIR lir, FrameMap frameMap, Object stub) {
         return new AMD64HotSpotLIRGenerationResult(lir, frameMap, stub);
+    }
+
+    @Override
+    public NodeLIRBuilder newNodeLIRGenerator(StructuredGraph graph, LIRGenerationResult lirGenRes, LIRGenerator lirGen) {
+        return new AMD64HotSpotNodeLIRBuilder(graph, lirGenRes, lirGen);
     }
 
     /**
@@ -323,4 +328,5 @@ public class AMD64HotSpotBackend extends HotSpotHostBackend {
         };
         return new HotSpotNativeFunctionInterface(getProviders(), factory, this, config.dllLoad, config.dllLookup, config.rtldDefault);
     }
+
 }

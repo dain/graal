@@ -39,6 +39,7 @@ import com.oracle.graal.asm.ptx.*;
 import com.oracle.graal.compiler.gen.*;
 import com.oracle.graal.debug.*;
 import com.oracle.graal.debug.Debug.Scope;
+import com.oracle.graal.gpu.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.hotspot.meta.*;
@@ -352,8 +353,13 @@ public class PTXHotSpotBackend extends HotSpotBackend {
     }
 
     @Override
-    public LIRGenerator newLIRGenerator(StructuredGraph graph, CallingConvention cc, LIRGenerationResult lirGenRes) {
-        return new PTXHotSpotLIRGenerator(graph, getProviders(), getRuntime().getConfig(), cc, lirGenRes);
+    public LIRGenerator newLIRGenerator(CallingConvention cc, LIRGenerationResult lirGenRes) {
+        return new PTXHotSpotLIRGenerator(getProviders(), getRuntime().getConfig(), cc, lirGenRes);
+    }
+
+    @Override
+    public NodeLIRBuilder newNodeLIRGenerator(StructuredGraph graph, LIRGenerationResult lirGenRes, LIRGenerator lirGen) {
+        return new PTXHotSpotNodeLIRBuilder(graph, lirGenRes, lirGen);
     }
 
     private static void emitKernelEntry(CompilationResultBuilder crb, LIR lir, ResolvedJavaMethod codeCacheOwner) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2014, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,11 +20,24 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.compiler.gen;
 
-import com.oracle.graal.api.meta.*;
+package com.oracle.graal.compiler.hsail.test;
 
-public interface BaselineLIRGenerator {
+import org.junit.Test;
 
-    void visitReturn(Value x);
+/**
+ * For globalsize 16384, deopt on a single gid but then catch the exception in the run routine
+ * itself.
+ */
+public class BoundsCatchSingle16384Test extends BoundsCatchSingleBase {
+
+    @Override
+    int getGlobalSize() {
+        return 16384;
+    }
+
+    @Test
+    public void test() {
+        testGeneratedHsail();
+    }
 }

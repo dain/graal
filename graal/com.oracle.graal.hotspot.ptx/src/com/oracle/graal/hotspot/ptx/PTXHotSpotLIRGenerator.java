@@ -30,21 +30,15 @@ import com.oracle.graal.compiler.ptx.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.hotspot.meta.*;
-import com.oracle.graal.hotspot.nodes.*;
-import com.oracle.graal.nodes.*;
 
 /**
  * LIR generator specialized for PTX HotSpot.
  */
 public class PTXHotSpotLIRGenerator extends PTXLIRGenerator implements HotSpotLIRGenerator {
 
-    protected PTXHotSpotLIRGenerator(StructuredGraph graph, HotSpotProviders providers, HotSpotVMConfig config, CallingConvention cc, LIRGenerationResult lirGenRes) {
-        super(graph, providers, cc, lirGenRes);
+    protected PTXHotSpotLIRGenerator(HotSpotProviders providers, HotSpotVMConfig config, CallingConvention cc, LIRGenerationResult lirGenRes) {
+        super(providers, cc, lirGenRes);
         assert config.basicLockSize == 8;
-    }
-
-    public void emitPrefetchAllocate(ValueNode address, ValueNode distance) {
-        // nop
     }
 
     public void emitTailcall(Value[] args, Value address) {
@@ -52,18 +46,6 @@ public class PTXHotSpotLIRGenerator extends PTXLIRGenerator implements HotSpotLI
     }
 
     public void emitDeoptimizeCaller(DeoptimizationAction action, DeoptimizationReason reason) {
-        throw GraalInternalError.unimplemented();
-    }
-
-    public void emitPatchReturnAddress(ValueNode address) {
-        throw GraalInternalError.unimplemented();
-    }
-
-    public void emitJumpToExceptionHandlerInCaller(ValueNode handlerInCallerPc, ValueNode exception, ValueNode exceptionPc) {
-        throw GraalInternalError.unimplemented();
-    }
-
-    public void visitDirectCompareAndSwap(DirectCompareAndSwapNode x) {
         throw GraalInternalError.unimplemented();
     }
 

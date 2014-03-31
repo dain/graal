@@ -98,752 +98,6 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
 
     public static class Instance extends Phase {
 
-        private class BytecodeParseHelperValueNode extends BytecodeParseHelper<ValueNode> {
-
-            private final Instance instance;
-
-            public BytecodeParseHelperValueNode(Instance instance) {
-                super(metaAccess, graphBuilderConfig, optimisticOpts, frameState, stream, profilingInfo, constantPool);
-                this.instance = instance;
-            }
-
-            @Override
-            protected void handleUnresolvedLoadConstant(JavaType type) {
-                assert !graphBuilderConfig.eagerResolving();
-                append(new DeoptimizeNode(InvalidateRecompile, Unresolved));
-                frameState.push(Kind.Object, appendConstant(Constant.NULL_OBJECT));
-            }
-
-            @Override
-            protected void handleUnresolvedCheckCast(JavaType type, ValueNode object) {
-                assert !graphBuilderConfig.eagerResolving();
-                append(new FixedGuardNode(currentGraph.unique(new IsNullNode(object)), Unresolved, InvalidateRecompile));
-                frameState.apush(appendConstant(Constant.NULL_OBJECT));
-            }
-
-            @Override
-            protected void handleUnresolvedInstanceOf(JavaType type, ValueNode object) {
-                assert !graphBuilderConfig.eagerResolving();
-                BlockPlaceholderNode successor = currentGraph.add(new BlockPlaceholderNode(this.instance));
-                DeoptimizeNode deopt = currentGraph.add(new DeoptimizeNode(InvalidateRecompile, Unresolved));
-                append(new IfNode(currentGraph.unique(new IsNullNode(object)), successor, deopt, 1));
-                lastInstr = successor;
-                frameState.ipush(appendConstant(Constant.INT_0));
-
-            }
-
-            @Override
-            protected void handleUnresolvedNewInstance(JavaType type) {
-                assert !graphBuilderConfig.eagerResolving();
-                append(new DeoptimizeNode(InvalidateRecompile, Unresolved));
-                frameState.apush(appendConstant(Constant.NULL_OBJECT));
-            }
-
-            @Override
-            protected void handleUnresolvedNewObjectArray(JavaType type, ValueNode length) {
-                assert !graphBuilderConfig.eagerResolving();
-                append(new DeoptimizeNode(InvalidateRecompile, Unresolved));
-                frameState.apush(appendConstant(Constant.NULL_OBJECT));
-            }
-
-            @Override
-            protected void handleUnresolvedLoadField(JavaField field, ValueNode receiver) {
-                assert !graphBuilderConfig.eagerResolving();
-                Kind kind = field.getKind();
-                append(new DeoptimizeNode(InvalidateRecompile, Unresolved));
-                frameState.push(kind.getStackKind(), appendConstant(Constant.defaultForKind(kind)));
-            }
-
-            @Override
-            protected void handleUnresolvedStoreField(JavaField field, ValueNode value, ValueNode receiver) {
-                assert !graphBuilderConfig.eagerResolving();
-                append(new DeoptimizeNode(InvalidateRecompile, Unresolved));
-            }
-
-            @Override
-            protected void handleUnresolvedExceptionType(Representation representation, JavaType type) {
-                assert !graphBuilderConfig.eagerResolving();
-                append(new DeoptimizeNode(InvalidateRecompile, Unresolved));
-            }
-
-            @Override
-            protected ValueNode genLoadIndexed(ValueNode index, ValueNode array, Kind kind) {
-                return new LoadIndexedNode(array, index, kind);
-            }
-
-            @Override
-            protected ValueNode genStoreIndexed(ValueNode array, ValueNode index, Kind kind, ValueNode value) {
-                return new StoreIndexedNode(array, index, kind, value);
-            }
-
-            @Override
-            protected ValueNode genIntegerAdd(Kind kind, ValueNode x, ValueNode y) {
-                return new IntegerAddNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genIntegerSub(Kind kind, ValueNode x, ValueNode y) {
-                return new IntegerSubNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genIntegerMul(Kind kind, ValueNode x, ValueNode y) {
-                return new IntegerMulNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genFloatAdd(Kind kind, ValueNode x, ValueNode y, boolean isStrictFP) {
-                return new FloatAddNode(StampFactory.forKind(kind), x, y, isStrictFP);
-            }
-
-            @Override
-            protected ValueNode genFloatSub(Kind kind, ValueNode x, ValueNode y, boolean isStrictFP) {
-                return new FloatSubNode(StampFactory.forKind(kind), x, y, isStrictFP);
-            }
-
-            @Override
-            protected ValueNode genFloatMul(Kind kind, ValueNode x, ValueNode y, boolean isStrictFP) {
-                return new FloatMulNode(StampFactory.forKind(kind), x, y, isStrictFP);
-            }
-
-            @Override
-            protected ValueNode genFloatDiv(Kind kind, ValueNode x, ValueNode y, boolean isStrictFP) {
-                return new FloatDivNode(StampFactory.forKind(kind), x, y, isStrictFP);
-            }
-
-            @Override
-            protected ValueNode genFloatRem(Kind kind, ValueNode x, ValueNode y, boolean isStrictFP) {
-                return new FloatRemNode(StampFactory.forKind(kind), x, y, isStrictFP);
-            }
-
-            @Override
-            protected ValueNode genIntegerDiv(Kind kind, ValueNode x, ValueNode y) {
-                return new IntegerDivNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genIntegerRem(Kind kind, ValueNode x, ValueNode y) {
-                return new IntegerRemNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genNegateOp(ValueNode x) {
-                return new NegateNode(x);
-            }
-
-            @Override
-            protected ValueNode genLeftShift(Kind kind, ValueNode x, ValueNode y) {
-                return new LeftShiftNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genRightShift(Kind kind, ValueNode x, ValueNode y) {
-                return new RightShiftNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genUnsignedRightShift(Kind kind, ValueNode x, ValueNode y) {
-                return new UnsignedRightShiftNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode appendConstant(Constant constant) {
-                assert constant != null;
-                return ConstantNode.forConstant(constant, metaAccess, currentGraph);
-            }
-
-            @Override
-            protected ValueNode append(ValueNode v) {
-                assert !v.isAlive() && !v.isDeleted() : "instruction should not have been appended yet";
-                assert lastInstr.next() == null : "cannot append instruction to instruction which isn't end (" + lastInstr + "->" + lastInstr.next() + ")";
-                ValueNode added = currentGraph.add(v);
-                FixedNode fixed = (FixedNode) added;
-                lastInstr.setNext(fixed);
-                lastInstr = null;
-                return fixed;
-            }
-
-            @Override
-            protected void handleUnresolvedNewMultiArray(JavaType type, List<ValueNode> dims) {
-                assert !graphBuilderConfig.eagerResolving();
-                append(new DeoptimizeNode(InvalidateRecompile, Unresolved));
-                frameState.apush(appendConstant(Constant.NULL_OBJECT));
-            }
-
-            @Override
-            protected ValueNode genAnd(Kind kind, ValueNode x, ValueNode y) {
-                return new AndNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genOr(Kind kind, ValueNode x, ValueNode y) {
-                return new OrNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genXor(Kind kind, ValueNode x, ValueNode y) {
-                return new XorNode(StampFactory.forKind(kind), x, y);
-            }
-
-            @Override
-            protected ValueNode genNormalizeCompare(ValueNode x, ValueNode y, boolean isUnorderedLess) {
-                return new NormalizeCompareNode(x, y, isUnorderedLess);
-            }
-
-            @Override
-            protected ValueNode genFloatConvert(FloatConvert op, ValueNode input) {
-                return new FloatConvertNode(op, input);
-            }
-
-            @Override
-            protected ValueNode genNarrow(ValueNode input, int bitCount) {
-                return new NarrowNode(input, bitCount);
-            }
-
-            @Override
-            protected ValueNode genSignExtend(ValueNode input, int bitCount) {
-                return new SignExtendNode(input, bitCount);
-            }
-
-            @Override
-            protected ValueNode genZeroExtend(ValueNode input, int bitCount) {
-                return new ZeroExtendNode(input, bitCount);
-            }
-
-            @Override
-            protected ValueNode genObjectEquals(ValueNode x, ValueNode y) {
-                return new ObjectEqualsNode(x, y);
-            }
-
-            @Override
-            protected ValueNode genIntegerEquals(ValueNode x, ValueNode y) {
-                return new IntegerEqualsNode(x, y);
-            }
-
-            @Override
-            protected ValueNode genIntegerLessThan(ValueNode x, ValueNode y) {
-                return new IntegerLessThanNode(x, y);
-            }
-
-            @Override
-            protected ValueNode genUnique(ValueNode x) {
-                return currentGraph.unique(x);
-            }
-
-            @Override
-            protected ValueNode genIf(ValueNode condition, ValueNode falseSuccessor, ValueNode trueSuccessor, double d) {
-                // ugly
-                return new IfNode((LogicNode) condition, (FixedNode) trueSuccessor, (FixedNode) falseSuccessor, d);
-            }
-
-            @Override
-            protected void genThrow() {
-                ValueNode exception = frameState.apop();
-                append(new FixedGuardNode(currentGraph.unique(new IsNullNode(exception)), NullCheckException, InvalidateReprofile, true));
-                lastInstr.setNext(handleException(exception, bci()));
-            }
-
-            @Override
-            protected ValueNode genCheckCast(ResolvedJavaType type, ValueNode object, JavaTypeProfile profileForTypeCheck, boolean b) {
-                return new CheckCastNode(type, object, profileForTypeCheck, b);
-            }
-
-            @Override
-            protected ValueNode genInstanceOf(ResolvedJavaType type, ValueNode object, JavaTypeProfile profileForTypeCheck) {
-                return new InstanceOfNode(type, object, profileForTypeCheck);
-            }
-
-            @Override
-            protected ValueNode genConditional(ValueNode x) {
-                LogicNode xy = (LogicNode) x;
-                return new ConditionalNode(currentGraph.unique(xy));
-            }
-
-            @Override
-            protected ValueNode createNewInstance(ResolvedJavaType type, boolean fillContents) {
-                return new NewInstanceNode(type, fillContents);
-            }
-
-            @Override
-            protected ValueNode createNewArray(ResolvedJavaType elementType, ValueNode length, boolean fillContents) {
-                return new NewArrayNode(elementType, length, fillContents);
-            }
-
-            @Override
-            protected ValueNode createNewMultiArray(ResolvedJavaType type, List<ValueNode> dims) {
-                ValueNode[] arr = dims.toArray(new ValueNode[dims.size()]);
-                return new NewMultiArrayNode(type, arr);
-            }
-
-            @Override
-            protected ValueNode genLoadField(ValueNode receiver, ResolvedJavaField field) {
-                return new LoadFieldNode(receiver, field);
-            }
-
-            @Override
-            protected void emitNullCheck(ValueNode receiver) {
-                if (ObjectStamp.isObjectNonNull(receiver.stamp())) {
-                    return;
-                }
-
-                BlockPlaceholderNode trueSucc = currentGraph.add(new BlockPlaceholderNode(instance));
-                BlockPlaceholderNode falseSucc = currentGraph.add(new BlockPlaceholderNode(instance));
-                append(new IfNode(currentGraph.unique(new IsNullNode(receiver)), trueSucc, falseSucc, 0.01));
-                lastInstr = falseSucc;
-
-                if (OmitHotExceptionStacktrace.getValue()) {
-                    ValueNode exception = ConstantNode.forObject(cachedNullPointerException, metaAccess, currentGraph);
-                    trueSucc.setNext(handleException(exception, bci()));
-                } else {
-                    DeferredForeignCallNode call = currentGraph.add(new DeferredForeignCallNode(CREATE_NULL_POINTER_EXCEPTION));
-                    call.setStamp(StampFactory.exactNonNull(metaAccess.lookupJavaType(CREATE_NULL_POINTER_EXCEPTION.getResultType())));
-                    call.setStateAfter(frameState.create(bci()));
-                    trueSucc.setNext(call);
-                    call.setNext(handleException(call, bci()));
-                }
-            }
-
-            @Override
-            protected void emitBoundsCheck(ValueNode index, ValueNode length) {
-                BlockPlaceholderNode trueSucc = currentGraph.add(new BlockPlaceholderNode(instance));
-                BlockPlaceholderNode falseSucc = currentGraph.add(new BlockPlaceholderNode(instance));
-                append(new IfNode(currentGraph.unique(new IntegerBelowThanNode(index, length)), trueSucc, falseSucc, 0.99));
-                lastInstr = trueSucc;
-
-                if (OmitHotExceptionStacktrace.getValue()) {
-                    ValueNode exception = ConstantNode.forObject(cachedArrayIndexOutOfBoundsException, metaAccess, currentGraph);
-                    falseSucc.setNext(handleException(exception, bci()));
-                } else {
-                    DeferredForeignCallNode call = currentGraph.add(new DeferredForeignCallNode(CREATE_OUT_OF_BOUNDS_EXCEPTION, index));
-                    call.setStamp(StampFactory.exactNonNull(metaAccess.lookupJavaType(CREATE_OUT_OF_BOUNDS_EXCEPTION.getResultType())));
-                    call.setStateAfter(frameState.create(bci()));
-                    falseSucc.setNext(call);
-                    call.setNext(handleException(call, bci()));
-                }
-            }
-
-            @Override
-            protected ValueNode genArrayLength(ValueNode x) {
-                return new ArrayLengthNode(x);
-            }
-
-            @Override
-            protected ValueNode genStoreField(ValueNode receiver, ResolvedJavaField field, ValueNode value) {
-                return new StoreFieldNode(receiver, field, value);
-            }
-
-            @Override
-            protected void genInvokeStatic(JavaMethod target) {
-                if (target instanceof ResolvedJavaMethod) {
-                    ResolvedJavaMethod resolvedTarget = (ResolvedJavaMethod) target;
-                    ResolvedJavaType holder = resolvedTarget.getDeclaringClass();
-                    if (!holder.isInitialized() && ResolveClassBeforeStaticInvoke.getValue()) {
-                        handleUnresolvedInvoke(target, InvokeKind.Static);
-                    } else {
-                        ValueNode[] args = frameState.popArguments(resolvedTarget.getSignature().getParameterSlots(false), resolvedTarget.getSignature().getParameterCount(false));
-                        appendInvoke(InvokeKind.Static, resolvedTarget, args);
-                    }
-                } else {
-                    handleUnresolvedInvoke(target, InvokeKind.Static);
-                }
-            }
-
-            @Override
-            protected void genInvokeInterface(JavaMethod target) {
-                if (target instanceof ResolvedJavaMethod) {
-                    ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(true), target.getSignature().getParameterCount(true));
-                    genInvokeIndirect(InvokeKind.Interface, (ResolvedJavaMethod) target, args);
-                } else {
-                    handleUnresolvedInvoke(target, InvokeKind.Interface);
-                }
-            }
-
-            @Override
-            protected void genInvokeDynamic(JavaMethod target) {
-                if (target instanceof ResolvedJavaMethod) {
-                    Object appendix = constantPool.lookupAppendix(stream.readCPI4(), Bytecodes.INVOKEDYNAMIC);
-                    if (appendix != null) {
-                        frameState.apush(ConstantNode.forObject(appendix, metaAccess, currentGraph));
-                    }
-                    ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(false), target.getSignature().getParameterCount(false));
-                    appendInvoke(InvokeKind.Static, (ResolvedJavaMethod) target, args);
-                } else {
-                    handleUnresolvedInvoke(target, InvokeKind.Static);
-                }
-            }
-
-            @Override
-            protected void genInvokeVirtual(JavaMethod target) {
-                if (target instanceof ResolvedJavaMethod) {
-                    /*
-                     * Special handling for runtimes that rewrite an invocation of
-                     * MethodHandle.invoke(...) or MethodHandle.invokeExact(...) to a static
-                     * adapter. HotSpot does this - see
-                     * https://wikis.oracle.com/display/HotSpotInternals/Method+handles
-                     * +and+invokedynamic
-                     */
-                    boolean hasReceiver = !isStatic(((ResolvedJavaMethod) target).getModifiers());
-                    Object appendix = constantPool.lookupAppendix(stream.readCPI(), Bytecodes.INVOKEVIRTUAL);
-                    if (appendix != null) {
-                        frameState.apush(ConstantNode.forObject(appendix, metaAccess, currentGraph));
-                    }
-                    ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(hasReceiver), target.getSignature().getParameterCount(hasReceiver));
-                    if (hasReceiver) {
-                        genInvokeIndirect(InvokeKind.Virtual, (ResolvedJavaMethod) target, args);
-                    } else {
-                        appendInvoke(InvokeKind.Static, (ResolvedJavaMethod) target, args);
-                    }
-                } else {
-                    handleUnresolvedInvoke(target, InvokeKind.Virtual);
-                }
-            }
-
-            @Override
-            protected void genInvokeSpecial(JavaMethod target) {
-                if (target instanceof ResolvedJavaMethod) {
-                    assert target != null;
-                    assert target.getSignature() != null;
-                    ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(true), target.getSignature().getParameterCount(true));
-                    invokeDirect((ResolvedJavaMethod) target, args);
-                } else {
-                    handleUnresolvedInvoke(target, InvokeKind.Special);
-                }
-            }
-
-            @Override
-            protected void genInvokeIndirect(InvokeKind invokeKind, ResolvedJavaMethod target, ValueNode[] args) {
-                ValueNode receiver = args[0];
-                // attempt to devirtualize the call
-                ResolvedJavaType klass = target.getDeclaringClass();
-
-                // 0. check for trivial cases
-                if (target.canBeStaticallyBound()) {
-                    // check for trivial cases (e.g. final methods, nonvirtual methods)
-                    invokeDirect(target, args);
-                    return;
-                }
-                // 1. check if the exact type of the receiver can be determined
-                ResolvedJavaType exact = klass.asExactType();
-                if (exact == null && receiver.stamp() instanceof ObjectStamp) {
-                    ObjectStamp receiverStamp = (ObjectStamp) receiver.stamp();
-                    if (receiverStamp.isExactType()) {
-                        exact = receiverStamp.type();
-                    }
-                }
-                if (exact != null) {
-                    // either the holder class is exact, or the receiver object has an exact type
-                    ResolvedJavaMethod exactMethod = exact.resolveMethod(target);
-                    if (exactMethod != null) {
-                        invokeDirect(exactMethod, args);
-                        return;
-                    }
-                }
-                // devirtualization failed, produce an actual invokevirtual
-                appendInvoke(invokeKind, target, args);
-            }
-
-            @Override
-            protected void genReturn(ValueNode x) {
-                frameState.setRethrowException(false);
-                frameState.clearStack();
-                if (graphBuilderConfig.eagerInfopointMode()) {
-                    append(new InfopointNode(InfopointReason.METHOD_END, frameState.create(bci())));
-                }
-
-                synchronizedEpilogue(FrameState.AFTER_BCI, x);
-                if (frameState.lockDepth() != 0) {
-                    throw new BailoutException("unbalanced monitors");
-                }
-
-                append(new ReturnNode(x));
-            }
-
-            @Override
-            protected ValueNode genMonitorEnter(ValueNode x) {
-                MonitorIdNode monitorId = currentGraph.add(new MonitorIdNode(frameState.lockDepth()));
-                ValueNode monitorEnter = append(new MonitorEnterNode(x, monitorId));
-                frameState.pushLock(x, monitorId);
-                return monitorEnter;
-            }
-
-            @Override
-            protected ValueNode genMonitorExit(ValueNode x, ValueNode returnValue) {
-                MonitorIdNode monitorId = frameState.peekMonitorId();
-                ValueNode lockedObject = frameState.popLock();
-                if (GraphUtil.originalValue(lockedObject) != GraphUtil.originalValue(x)) {
-                    throw new BailoutException("unbalanced monitors: mismatch at monitorexit, %s != %s", GraphUtil.originalValue(x), GraphUtil.originalValue(lockedObject));
-                }
-                ValueNode monitorExit = append(new MonitorExitNode(x, monitorId, returnValue));
-                return monitorExit;
-            }
-
-            @Override
-            protected void genJsr(int dest) {
-                BciBlock successor = currentBlock.jsrSuccessor;
-                assert successor.startBci == dest : successor.startBci + " != " + dest + " @" + bci();
-                JsrScope scope = currentBlock.jsrScope;
-                if (!successor.jsrScope.pop().equals(scope)) {
-                    throw new JsrNotSupportedBailout("unstructured control flow (internal limitation)");
-                }
-                if (successor.jsrScope.nextReturnAddress() != stream().nextBCI()) {
-                    throw new JsrNotSupportedBailout("unstructured control flow (internal limitation)");
-                }
-                frameState.push(Kind.Int, ConstantNode.forInt(stream().nextBCI(), currentGraph));
-                appendGoto(createTarget(successor, frameState));
-            }
-
-            @Override
-            protected void genRet(int localIndex) {
-                BciBlock successor = currentBlock.retSuccessor;
-                ValueNode local = frameState.loadLocal(localIndex);
-                JsrScope scope = currentBlock.jsrScope;
-                int retAddress = scope.nextReturnAddress();
-                append(new FixedGuardNode(currentGraph.unique(new IntegerEqualsNode(local, ConstantNode.forInt(retAddress, currentGraph))), JavaSubroutineMismatch, InvalidateReprofile));
-                if (!successor.jsrScope.equals(scope.pop())) {
-                    throw new JsrNotSupportedBailout("unstructured control flow (ret leaves more than one scope)");
-                }
-                appendGoto(createTarget(successor, frameState));
-            }
-
-            @Override
-            protected void setBlockSuccessor(ValueNode switchNode, int i, ValueNode createBlockTarget) {
-                // TODO Auto-generated method stub
-
-            }
-
-            @Override
-            protected ValueNode genIntegerSwitch(ValueNode value, int size, int[] keys, double[] keyProbabilities, int[] keySuccessors) {
-                return new IntegerSwitchNode(value, size, keys, keyProbabilities, keySuccessors);
-            }
-
-            @Override
-            protected ValueNode createTarget(BciBlock block, AbstractFrameStateBuilder<ValueNode> s) {
-                assert block != null && s != null;
-                assert !block.isExceptionEntry || s.stackSize() == 1;
-
-                HIRFrameStateBuilder state = (HIRFrameStateBuilder) s;
-
-                if (block.firstInstruction == null) {
-                    /*
-                     * This is the first time we see this block as a branch target. Create and
-                     * return a placeholder that later can be replaced with a MergeNode when we see
-                     * this block again.
-                     */
-                    block.firstInstruction = currentGraph.add(new BlockPlaceholderNode(instance));
-                    Target target = checkLoopExit(block.firstInstruction, block, state);
-                    FixedNode result = target.fixed;
-                    block.entryState = target.state == state ? state.copy() : target.state;
-                    block.entryState.clearNonLiveLocals(block, liveness, true);
-
-                    Debug.log("createTarget %s: first visit, result: %s", block, block.firstInstruction);
-                    return result;
-                }
-
-                // We already saw this block before, so we have to merge states.
-                if (!block.entryState.isCompatibleWith(state)) {
-                    throw new BailoutException("stacks do not match; bytecodes would not verify");
-                }
-
-                if (block.firstInstruction instanceof LoopBeginNode) {
-                    assert block.isLoopHeader && currentBlock.getId() >= block.getId() : "must be backward branch";
-                    /*
-                     * Backward loop edge. We need to create a special LoopEndNode and merge with
-                     * the loop begin node created before.
-                     */
-                    LoopBeginNode loopBegin = (LoopBeginNode) block.firstInstruction;
-                    Target target = checkLoopExit(currentGraph.add(new LoopEndNode(loopBegin)), block, state);
-                    FixedNode result = target.fixed;
-                    block.entryState.merge(loopBegin, target.state);
-
-                    Debug.log("createTarget %s: merging backward branch to loop header %s, result: %s", block, loopBegin, result);
-                    return result;
-                }
-                assert currentBlock == null || currentBlock.getId() < block.getId() : "must not be backward branch";
-                assert block.firstInstruction.next() == null : "bytecodes already parsed for block";
-
-                if (block.firstInstruction instanceof BlockPlaceholderNode) {
-                    /*
-                     * This is the second time we see this block. Create the actual MergeNode and
-                     * the End Node for the already existing edge. For simplicity, we leave the
-                     * placeholder in the graph and just append the new nodes after the placeholder.
-                     */
-                    BlockPlaceholderNode placeholder = (BlockPlaceholderNode) block.firstInstruction;
-
-                    // The EndNode for the already existing edge.
-                    AbstractEndNode end = currentGraph.add(new EndNode());
-                    // The MergeNode that replaces the placeholder.
-                    MergeNode mergeNode = currentGraph.add(new MergeNode());
-                    FixedNode next = placeholder.next();
-
-                    placeholder.setNext(end);
-                    mergeNode.addForwardEnd(end);
-                    mergeNode.setNext(next);
-
-                    block.firstInstruction = mergeNode;
-                }
-
-                MergeNode mergeNode = (MergeNode) block.firstInstruction;
-
-                // The EndNode for the newly merged edge.
-                AbstractEndNode newEnd = currentGraph.add(new EndNode());
-                Target target = checkLoopExit(newEnd, block, state);
-                FixedNode result = target.fixed;
-                block.entryState.merge(mergeNode, target.state);
-                mergeNode.addForwardEnd(newEnd);
-
-                Debug.log("createTarget %s: merging state, result: %s", block, result);
-                return result;
-            }
-
-            @Override
-            protected ValueNode createBlockTarget(double probability, BciBlock block, AbstractFrameStateBuilder<ValueNode> stateAfter) {
-                assert probability >= 0 && probability <= 1.01 : probability;
-                if (isNeverExecutedCode(probability)) {
-                    return currentGraph.add(new DeoptimizeNode(InvalidateReprofile, UnreachedCode));
-                } else {
-                    assert block != null;
-                    return createTarget(block, stateAfter);
-                }
-            }
-
-            @Override
-            protected void processBlock(BciBlock block) {
-                // Ignore blocks that have no predecessors by the time their bytecodes are parsed
-                if (block == null || block.firstInstruction == null) {
-                    Debug.log("Ignoring block %s", block);
-                    return;
-                }
-                Indent indent = Debug.logAndIndent("Parsing block %s  firstInstruction: %s  loopHeader: %b", block, block.firstInstruction, block.isLoopHeader);
-
-                lastInstr = block.firstInstruction;
-                frameState = block.entryState;
-                parseHelper.setCurrentFrameState(frameState);
-                currentBlock = block;
-
-                frameState.cleanupDeletedPhis();
-                if (lastInstr instanceof MergeNode) {
-                    int bci = block.startBci;
-                    if (block instanceof ExceptionDispatchBlock) {
-                        bci = ((ExceptionDispatchBlock) block).deoptBci;
-                    }
-                    ((MergeNode) lastInstr).setStateAfter(frameState.create(bci));
-                }
-
-                if (block == unwindBlock) {
-                    frameState.setRethrowException(false);
-                    createUnwind();
-                } else if (block instanceof ExceptionDispatchBlock) {
-                    createExceptionDispatch((ExceptionDispatchBlock) block);
-                } else {
-                    frameState.setRethrowException(false);
-                    iterateBytecodesForBlock(block);
-                }
-                indent.outdent();
-            }
-
-            @Override
-            protected void appendGoto(ValueNode target) {
-                if (lastInstr != null) {
-                    lastInstr.setNext((FixedNode) target);
-                }
-            }
-
-            @Override
-            protected void iterateBytecodesForBlock(BciBlock block) {
-                if (block.isLoopHeader) {
-                    // Create the loop header block, which later will merge the backward branches of
-// the
-                    // loop.
-                    AbstractEndNode preLoopEnd = currentGraph.add(new EndNode());
-                    LoopBeginNode loopBegin = currentGraph.add(new LoopBeginNode());
-                    lastInstr.setNext(preLoopEnd);
-                    // Add the single non-loop predecessor of the loop header.
-                    loopBegin.addForwardEnd(preLoopEnd);
-                    lastInstr = loopBegin;
-
-                    // Create phi functions for all local variables and operand stack slots.
-                    frameState.insertLoopPhis(loopBegin);
-                    loopBegin.setStateAfter(frameState.create(block.startBci));
-
-                    /*
-                     * We have seen all forward branches. All subsequent backward branches will
-                     * merge to the loop header. This ensures that the loop header has exactly one
-                     * non-loop predecessor.
-                     */
-                    block.firstInstruction = loopBegin;
-                    /*
-                     * We need to preserve the frame state builder of the loop header so that we can
-                     * merge values for phi functions, so make a copy of it.
-                     */
-                    block.entryState = frameState.copy();
-
-                    Debug.log("  created loop header %s", loopBegin);
-                }
-                assert lastInstr.next() == null : "instructions already appended at block " + block;
-                Debug.log("  frameState: %s", frameState);
-
-                int endBCI = stream.endBCI();
-
-                stream.setBCI(block.startBci);
-                int bci = block.startBci;
-                BytecodesParsed.add(block.endBci - bci);
-
-                while (bci < endBCI) {
-                    if (graphBuilderConfig.eagerInfopointMode() && lnt != null) {
-                        currentLineNumber = lnt.getLineNumber(bci);
-                        if (currentLineNumber != previousLineNumber) {
-                            append(new InfopointNode(InfopointReason.LINE_NUMBER, frameState.create(bci)));
-                            previousLineNumber = currentLineNumber;
-                        }
-                    }
-
-                    // read the opcode
-                    int opcode = stream.currentBC();
-                    traceState();
-                    traceInstruction(bci, opcode, bci == block.startBci);
-                    if (bci == entryBCI) {
-                        if (block.jsrScope != JsrScope.EMPTY_SCOPE) {
-                            throw new BailoutException("OSR into a JSR scope is not supported");
-                        }
-                        EntryMarkerNode x = (EntryMarkerNode) append(new EntryMarkerNode());
-                        frameState.insertProxies(x);
-                        x.setStateAfter(frameState.create(bci));
-                    }
-                    parseHelper.processBytecode(bci, opcode);
-
-                    if (lastInstr == null || isBlockEnd(lastInstr) || lastInstr.next() != null) {
-                        break;
-                    }
-
-                    stream.next();
-                    bci = stream.currentBCI();
-
-                    if (bci > block.endBci) {
-                        frameState.clearNonLiveLocals(currentBlock, liveness, false);
-                    }
-                    if (lastInstr instanceof StateSplit) {
-                        if (lastInstr.getClass() == AbstractBeginNode.class) {
-                            // BeginNodes do not need a frame state
-                        } else {
-                            StateSplit stateSplit = (StateSplit) lastInstr;
-                            if (stateSplit.stateAfter() == null) {
-                                stateSplit.setStateAfter(frameState.create(bci));
-                            }
-                        }
-                    }
-                    if (bci < endBCI) {
-                        if (bci > block.endBci) {
-                            assert !block.getSuccessor(0).isExceptionEntry;
-                            assert block.numNormalSuccessors() == 1;
-                            // we fell through to the next block, add a goto and break
-                            appendGoto(createTarget(block.getSuccessor(0), frameState));
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
         private LineNumberTable lnt;
         private int previousLineNumber;
         private int currentLineNumber;
@@ -864,7 +118,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
         private BytecodeStream stream;           // the bytecode stream
 
         protected HIRFrameStateBuilder frameState;          // the current execution state
-        private BytecodeParseHelperValueNode parseHelper;
+        private BytecodeParseHelper<ValueNode> parseHelper;
         private BciBlock currentBlock;
 
         private ValueNode methodSynchronizedObject;
@@ -886,7 +140,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
          * the jump. When the block is seen the second time, a {@link MergeNode} is created to
          * correctly merge the now two different predecessor states.
          */
-        private static class BlockPlaceholderNode extends FixedWithNextNode {
+        protected static class BlockPlaceholderNode extends FixedWithNextNode {
 
             /*
              * Cannot be explicitly declared as a Node type since it is not an input; would cause
@@ -950,7 +204,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
             methodSynchronizedObject = null;
             this.currentGraph = graph;
             this.frameState = new HIRFrameStateBuilder(method, graph, graphBuilderConfig.eagerResolving());
-            this.parseHelper = new BytecodeParseHelperValueNode(this);
+            this.parseHelper = new BytecodeParseHelper<>(frameState);
             TTY.Filter filter = new TTY.Filter(PrintFilter.getValue(), method);
             try {
                 build();
@@ -970,67 +224,77 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 TTY.println(MetaUtil.indent(MetaUtil.profileToString(profilingInfo, method, CodeUtil.NEW_LINE), "  "));
             }
 
-            Indent indent = Debug.logAndIndent("build graph for %s", method);
+            try (Indent indent = Debug.logAndIndent("build graph for %s", method)) {
 
-            // compute the block map, setup exception handlers and get the entrypoint(s)
-            BciBlockMapping blockMap = BciBlockMapping.create(method);
-            loopHeaders = blockMap.loopHeaders;
-            liveness = blockMap.liveness;
+                // compute the block map, setup exception handlers and get the entrypoint(s)
+                BciBlockMapping blockMap = BciBlockMapping.create(method);
+                loopHeaders = blockMap.loopHeaders;
+                liveness = blockMap.liveness;
 
-            lastInstr = currentGraph.start();
-            if (isSynchronized(method.getModifiers())) {
-                // add a monitor enter to the start block
-                currentGraph.start().setStateAfter(frameState.create(FrameState.BEFORE_BCI));
-                methodSynchronizedObject = synchronizedObject(frameState, method);
-                lastInstr = genMonitorEnter(methodSynchronizedObject);
-            }
-            frameState.clearNonLiveLocals(blockMap.startBlock, liveness, true);
-            ((StateSplit) lastInstr).setStateAfter(frameState.create(0));
+                lastInstr = currentGraph.start();
+                if (isSynchronized(method.getModifiers())) {
+                    // add a monitor enter to the start block
+                    currentGraph.start().setStateAfter(frameState.create(FrameState.BEFORE_BCI));
+                    methodSynchronizedObject = synchronizedObject(frameState, method);
+                    lastInstr = genMonitorEnter(methodSynchronizedObject);
+                }
+                frameState.clearNonLiveLocals(blockMap.startBlock, liveness, true);
+                ((StateSplit) lastInstr).setStateAfter(frameState.create(0));
+                finishPrepare(lastInstr);
 
-            if (graphBuilderConfig.eagerInfopointMode()) {
-                InfopointNode ipn = currentGraph.add(new InfopointNode(InfopointReason.METHOD_START, frameState.create(0)));
-                lastInstr.setNext(ipn);
-                lastInstr = ipn;
-            }
+                if (graphBuilderConfig.eagerInfopointMode()) {
+                    InfopointNode ipn = currentGraph.add(new InfopointNode(InfopointReason.METHOD_START, frameState.create(0)));
+                    lastInstr.setNext(ipn);
+                    lastInstr = ipn;
+                }
 
-            currentBlock = blockMap.startBlock;
-            blockMap.startBlock.entryState = frameState;
-            if (blockMap.startBlock.isLoopHeader) {
-                /*
-                 * TODO(lstadler,gduboscq) createTarget might not be safe at this position, since it
-                 * expects currentBlock, etc. to be set up correctly. A better solution to this
-                 * problem of start blocks that are loop headers would be to create a dummy block in
-                 * BciBlockMapping.
-                 */
-                appendGoto(createTarget(blockMap.startBlock, frameState));
-            } else {
-                blockMap.startBlock.firstInstruction = lastInstr;
-            }
+                currentBlock = blockMap.startBlock;
+                blockMap.startBlock.entryState = frameState;
+                if (blockMap.startBlock.isLoopHeader) {
+                    /*
+                     * TODO(lstadler,gduboscq) createTarget might not be safe at this position,
+                     * since it expects currentBlock, etc. to be set up correctly. A better solution
+                     * to this problem of start blocks that are loop headers would be to create a
+                     * dummy block in BciBlockMapping.
+                     */
+                    appendGoto(createTarget(blockMap.startBlock, frameState));
+                } else {
+                    blockMap.startBlock.firstInstruction = lastInstr;
+                }
 
-            for (BciBlock block : blockMap.blocks) {
-                processBlock(block);
-            }
-            processBlock(unwindBlock);
+                for (BciBlock block : blockMap.blocks) {
+                    processBlock(block);
+                }
+                processBlock(unwindBlock);
 
-            Debug.dump(currentGraph, "After bytecode parsing");
+                Debug.dump(currentGraph, "After bytecode parsing");
 
-            connectLoopEndToBegin();
+                connectLoopEndToBegin();
 
-            // remove Placeholders
-            for (BlockPlaceholderNode n = placeholders; n != null; n = n.nextPlaceholder()) {
-                if (!n.isDeleted()) {
-                    currentGraph.removeFixed(n);
+                // remove Placeholders
+                for (BlockPlaceholderNode n = placeholders; n != null; n = n.nextPlaceholder()) {
+                    if (!n.isDeleted()) {
+                        currentGraph.removeFixed(n);
+                    }
+                }
+                placeholders = null;
+
+                // remove dead FrameStates
+                for (Node n : currentGraph.getNodes(FrameState.class)) {
+                    if (n.usages().isEmpty() && n.predecessor() == null) {
+                        n.safeDelete();
+                    }
                 }
             }
-            placeholders = null;
+        }
 
-            // remove dead FrameStates
-            for (Node n : currentGraph.getNodes(FrameState.class)) {
-                if (n.usages().isEmpty() && n.predecessor() == null) {
-                    n.safeDelete();
-                }
-            }
-            indent.outdent();
+        /**
+         * A hook for derived classes to modify the graph start instruction or append new
+         * instructions to it.
+         *
+         * @param startInstr The start instruction of the graph.
+         */
+        protected void finishPrepare(FixedWithNextNode startInstr) {
         }
 
         private BciBlock unwindBlock(int bci) {
@@ -1050,6 +314,11 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
 
         protected int bci() {
             return stream.currentBCI();
+        }
+
+        @SuppressWarnings("unused")
+        private void loadLocal(int index, Kind kind) {
+            frameState.push(kind, frameState.loadLocal(index));
         }
 
         private void storeLocal(Kind kind, int index) {
@@ -1198,7 +467,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 dispatchState.setRethrowException(true);
             }
             FixedNode target = createTarget(dispatchBlock, dispatchState);
-            dispatchBegin.setNext(target);
+            finishInstruction(dispatchBegin, dispatchState).setNext(target);
             return dispatchBegin;
         }
 
@@ -1645,7 +914,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
         /**
          * Gets the kind of array elements for the array type code that appears in a
          * {@link Bytecodes#NEWARRAY} bytecode.
-         * 
+         *
          * @param code the array type code
          * @return the kind from the array type code
          */
@@ -1856,7 +1125,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
         private void genInvokeInterface(JavaMethod target) {
             if (target instanceof ResolvedJavaMethod) {
                 ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(true), target.getSignature().getParameterCount(true));
-                genInvokeIndirect(InvokeKind.Interface, (ResolvedJavaMethod) target, args);
+                appendInvoke(InvokeKind.Interface, (ResolvedJavaMethod) target, args);
             } else {
                 handleUnresolvedInvoke(target, InvokeKind.Interface);
             }
@@ -1891,7 +1160,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 }
                 ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(hasReceiver), target.getSignature().getParameterCount(hasReceiver));
                 if (hasReceiver) {
-                    genInvokeIndirect(InvokeKind.Virtual, (ResolvedJavaMethod) target, args);
+                    appendInvoke(InvokeKind.Virtual, (ResolvedJavaMethod) target, args);
                 } else {
                     appendInvoke(InvokeKind.Static, (ResolvedJavaMethod) target, args);
                 }
@@ -1906,45 +1175,10 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 assert target != null;
                 assert target.getSignature() != null;
                 ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(true), target.getSignature().getParameterCount(true));
-                invokeDirect((ResolvedJavaMethod) target, args);
+                appendInvoke(InvokeKind.Special, (ResolvedJavaMethod) target, args);
             } else {
                 handleUnresolvedInvoke(target, InvokeKind.Special);
             }
-        }
-
-        private void genInvokeIndirect(InvokeKind invokeKind, ResolvedJavaMethod target, ValueNode[] args) {
-            ValueNode receiver = args[0];
-            // attempt to devirtualize the call
-            ResolvedJavaType klass = target.getDeclaringClass();
-
-            // 0. check for trivial cases
-            if (target.canBeStaticallyBound()) {
-                // check for trivial cases (e.g. final methods, nonvirtual methods)
-                invokeDirect(target, args);
-                return;
-            }
-            // 1. check if the exact type of the receiver can be determined
-            ResolvedJavaType exact = klass.asExactType();
-            if (exact == null && receiver.stamp() instanceof ObjectStamp) {
-                ObjectStamp receiverStamp = (ObjectStamp) receiver.stamp();
-                if (receiverStamp.isExactType()) {
-                    exact = receiverStamp.type();
-                }
-            }
-            if (exact != null) {
-                // either the holder class is exact, or the receiver object has an exact type
-                ResolvedJavaMethod exactMethod = exact.resolveMethod(target);
-                if (exactMethod != null) {
-                    invokeDirect(exactMethod, args);
-                    return;
-                }
-            }
-            // devirtualization failed, produce an actual invokevirtual
-            appendInvoke(invokeKind, target, args);
-        }
-
-        private void invokeDirect(ResolvedJavaMethod target, ValueNode[] args) {
-            appendInvoke(InvokeKind.Special, target, args);
         }
 
         private void appendInvoke(InvokeKind invokeKind, ResolvedJavaMethod targetMethod, ValueNode[] args) {
@@ -2087,7 +1321,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
         /**
          * Helper function that sums up the probabilities of all keys that lead to a specific
          * successor.
-         * 
+         *
          * @return an array of size successorCount with the accumulated probability for each
          *         successor.
          */
@@ -2379,32 +1613,32 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 Debug.log("Ignoring block %s", block);
                 return;
             }
-            Indent indent = Debug.logAndIndent("Parsing block %s  firstInstruction: %s  loopHeader: %b", block, block.firstInstruction, block.isLoopHeader);
+            try (Indent indent = Debug.logAndIndent("Parsing block %s  firstInstruction: %s  loopHeader: %b", block, block.firstInstruction, block.isLoopHeader)) {
 
-            lastInstr = block.firstInstruction;
-            frameState = block.entryState;
-            parseHelper.setCurrentFrameState(frameState);
-            currentBlock = block;
+                lastInstr = block.firstInstruction;
+                frameState = block.entryState;
+                parseHelper.setCurrentFrameState(frameState);
+                currentBlock = block;
 
-            frameState.cleanupDeletedPhis();
-            if (lastInstr instanceof MergeNode) {
-                int bci = block.startBci;
-                if (block instanceof ExceptionDispatchBlock) {
-                    bci = ((ExceptionDispatchBlock) block).deoptBci;
+                frameState.cleanupDeletedPhis();
+                if (lastInstr instanceof MergeNode) {
+                    int bci = block.startBci;
+                    if (block instanceof ExceptionDispatchBlock) {
+                        bci = ((ExceptionDispatchBlock) block).deoptBci;
+                    }
+                    ((MergeNode) lastInstr).setStateAfter(frameState.create(bci));
                 }
-                ((MergeNode) lastInstr).setStateAfter(frameState.create(bci));
-            }
 
-            if (block == unwindBlock) {
-                frameState.setRethrowException(false);
-                createUnwind();
-            } else if (block instanceof ExceptionDispatchBlock) {
-                createExceptionDispatch((ExceptionDispatchBlock) block);
-            } else {
-                frameState.setRethrowException(false);
-                iterateBytecodesForBlock(block);
+                if (block == unwindBlock) {
+                    frameState.setRethrowException(false);
+                    createUnwind();
+                } else if (block instanceof ExceptionDispatchBlock) {
+                    createExceptionDispatch((ExceptionDispatchBlock) block);
+                } else {
+                    frameState.setRethrowException(false);
+                    iterateBytecodesForBlock(block);
+                }
             }
-            indent.outdent();
         }
 
         private void connectLoopEndToBegin() {
@@ -2533,6 +1767,8 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
             assert lastInstr.next() == null : "instructions already appended at block " + block;
             Debug.log("  frameState: %s", frameState);
 
+            lastInstr = finishInstruction(lastInstr, frameState);
+
             int endBCI = stream.endBCI();
 
             stream.setBCI(block.startBci);
@@ -2560,7 +1796,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                     frameState.insertProxies(x);
                     x.setStateAfter(frameState.create(bci));
                 }
-                parseHelper.processBytecode(bci, opcode);
+                processBytecode(bci, opcode);
 
                 if (lastInstr == null || isBlockEnd(lastInstr) || lastInstr.next() != null) {
                     break;
@@ -2582,6 +1818,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                         }
                     }
                 }
+                lastInstr = finishInstruction(lastInstr, frameState);
                 if (bci < endBCI) {
                     if (bci > block.endBci) {
                         assert !block.getSuccessor(0).isExceptionEntry;
@@ -2592,6 +1829,17 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                     }
                 }
             }
+        }
+
+        /**
+         * A hook for derived classes to modify the last instruction or add other instructions.
+         *
+         * @param instr The last instruction (= fixed node) which was added.
+         * @param state The current frame state.
+         * @Returns Returns the (new) last instruction.
+         */
+        protected FixedWithNextNode finishInstruction(FixedWithNextNode instr, HIRFrameStateBuilder state) {
+            return instr;
         }
 
         private final int traceLevel = Options.TraceBytecodeParserLevel.getValue();
@@ -2842,7 +2090,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 if (!currentBlock.jsrScope.isEmpty()) {
                     sb.append(' ').append(currentBlock.jsrScope);
                 }
-                Debug.log(sb.toString());
+                Debug.log("%s", sb);
             }
         }
 

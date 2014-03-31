@@ -41,8 +41,8 @@ public class PatchReturnAddressNode extends FixedWithNextNode implements LIRLowe
     }
 
     @Override
-    public void generate(LIRGeneratorTool gen) {
-        ((HotSpotLIRGenerator) gen).emitPatchReturnAddress(address);
+    public void generate(NodeLIRBuiderTool gen) {
+        ((HotSpotNodeLIRBuilder) gen).emitPatchReturnAddress(address);
     }
 
     @NodeIntrinsic
