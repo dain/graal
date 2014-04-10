@@ -282,7 +282,11 @@ public interface CompilerToVM {
 
     String getFileName(HotSpotResolvedJavaType method);
 
-    Object readUnsafeUncompressedPointer(Object o, long displacement);
+    Class<?> getJavaMirror(long metaspaceKlass);
+
+    NodeClass getNodeClass(Class<?> c);
+
+    void setNodeClass(Class<?> c, NodeClass nodeClass);
 
     long readUnsafeKlassPointer(Object o);
 
