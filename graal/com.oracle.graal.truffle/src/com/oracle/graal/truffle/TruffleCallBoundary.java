@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,27 +20,12 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.hotspot.meta;
+package com.oracle.graal.truffle;
 
-import com.oracle.graal.api.code.*;
-import com.oracle.graal.hotspot.*;
+import java.lang.annotation.*;
 
-/**
- * HotSpot implementation of {@link DisassemblerProvider}.
- */
-public class HotSpotDisassemblerProvider implements DisassemblerProvider {
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface TruffleCallBoundary {
 
-    protected final HotSpotGraalRuntime runtime;
-
-    public HotSpotDisassemblerProvider(HotSpotGraalRuntime runtime) {
-        this.runtime = runtime;
-    }
-
-    public String disassemble(InstalledCode code) {
-        if (code.isValid()) {
-            long codeBlob = ((HotSpotInstalledCode) code).getAddress();
-            return runtime.getCompilerToVM().disassembleCodeBlob(codeBlob);
-        }
-        return null;
-    }
 }
