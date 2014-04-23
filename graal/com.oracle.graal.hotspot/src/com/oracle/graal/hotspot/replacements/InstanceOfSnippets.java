@@ -33,6 +33,7 @@ import static com.oracle.graal.nodes.extended.BranchProbabilityNode.*;
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.api.meta.ProfilingInfo.TriState;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.hotspot.meta.*;
 import com.oracle.graal.hotspot.nodes.*;
 import com.oracle.graal.hotspot.replacements.TypeCheckSnippetUtils.Hints;
@@ -40,9 +41,7 @@ import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.extended.*;
 import com.oracle.graal.nodes.java.*;
 import com.oracle.graal.nodes.spi.*;
-import com.oracle.graal.nodes.type.*;
 import com.oracle.graal.options.*;
-import com.oracle.graal.phases.util.*;
 import com.oracle.graal.replacements.*;
 import com.oracle.graal.replacements.Snippet.ConstantParameter;
 import com.oracle.graal.replacements.Snippet.VarargsParameter;
@@ -181,7 +180,7 @@ public class InstanceOfSnippets implements Snippets {
      * Type test used when the type being tested against is not known at compile time.
      */
     @Snippet
-    public static Object instanceofDynamic(Class mirror, Object object, Object trueValue, Object falseValue) {
+    public static Object instanceofDynamic(Class<?> mirror, Object object, Object trueValue, Object falseValue) {
         if (probability(NOT_FREQUENT_PROBABILITY, object == null)) {
             isNull.inc();
             return falseValue;
@@ -216,8 +215,8 @@ public class InstanceOfSnippets implements Snippets {
         private final SnippetInfo instanceofSecondary = snippet(InstanceOfSnippets.class, "instanceofSecondary");
         private final SnippetInfo instanceofDynamic = snippet(InstanceOfSnippets.class, "instanceofDynamic");
 
-        public Templates(Providers providers, TargetDescription target) {
-            super(providers, target);
+        public Templates(HotSpotProviders providers, TargetDescription target) {
+            super(providers, providers.getSnippetReflection(), target);
         }
 
         @Override

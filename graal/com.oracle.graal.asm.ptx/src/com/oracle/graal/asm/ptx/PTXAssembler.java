@@ -27,9 +27,9 @@ import static com.oracle.graal.api.code.ValueUtil.*;
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.asm.*;
-import com.oracle.graal.graph.*;
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.calc.*;
 import com.oracle.graal.lir.*;
-import com.oracle.graal.nodes.calc.*;
 
 public class PTXAssembler extends AbstractPTXAssembler {
 
@@ -370,7 +370,7 @@ public class PTXAssembler extends AbstractPTXAssembler {
             assert var instanceof Variable;
             assert val instanceof Constant;
             Constant constant = (Constant) val;
-            return ("[" + ((space == PTXStateSpace.Parameter) ? emitParameter((Variable) var) : emitRegister((Variable) var, false)) + " + " + constant.asBoxedValue() + "]");
+            return ("[" + ((space == PTXStateSpace.Parameter) ? emitParameter((Variable) var) : emitRegister((Variable) var, false)) + " + " + constant.toValueString() + "]");
         }
 
         @Override

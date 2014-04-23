@@ -24,7 +24,6 @@ package com.oracle.graal.hotspot.test;
 
 import static com.oracle.graal.hotspot.HotSpotGraalRuntime.*;
 import static com.oracle.graal.hotspot.meta.HotSpotResolvedObjectType.*;
-import static java.lang.reflect.Modifier.*;
 
 import java.lang.reflect.*;
 
@@ -38,7 +37,7 @@ import com.oracle.graal.hotspot.meta.*;
  */
 public class HotSpotResolvedJavaFieldTest {
 
-    private static final Class[] classesWithInternalFields = {Class.class, ClassLoader.class};
+    private static final Class<?>[] classesWithInternalFields = {Class.class, ClassLoader.class};
 
     /**
      * Tests that {@link HotSpotResolvedJavaField#getModifiers()} only includes the modifiers
@@ -47,7 +46,7 @@ public class HotSpotResolvedJavaFieldTest {
      */
     @Test
     public void testModifiersForInternal() {
-        for (Class c : classesWithInternalFields) {
+        for (Class<?> c : classesWithInternalFields) {
             ResolvedJavaType type = HotSpotResolvedObjectType.fromClass(c);
             for (ResolvedJavaField field : type.getInstanceFields(false)) {
                 if (field.isInternal()) {
@@ -63,7 +62,7 @@ public class HotSpotResolvedJavaFieldTest {
      */
     @Test
     public void testCachingForInternalFields() {
-        for (Class c : classesWithInternalFields) {
+        for (Class<?> c : classesWithInternalFields) {
             HotSpotResolvedObjectType type = (HotSpotResolvedObjectType) HotSpotResolvedObjectType.fromClass(c);
             for (ResolvedJavaField field : type.getInstanceFields(false)) {
                 if (field.isInternal()) {
@@ -79,7 +78,7 @@ public class HotSpotResolvedJavaFieldTest {
     public void testIsInObject() {
         for (Field f : String.class.getDeclaredFields()) {
             HotSpotResolvedJavaField rf = (HotSpotResolvedJavaField) runtime().getHostProviders().getMetaAccess().lookupJavaField(f);
-            Assert.assertEquals(rf.toString(), rf.isInObject("a string"), !isStatic(rf.getModifiers()));
+            Assert.assertEquals(rf.toString(), rf.isInObject("a string"), !rf.isStatic());
         }
     }
 }

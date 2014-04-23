@@ -26,12 +26,16 @@ import java.util.*;
 
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.lir.*;
+import com.oracle.graal.lir.gen.*;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.calc.*;
 import com.oracle.graal.nodes.extended.*;
-import com.oracle.graal.nodes.java.*;
 
 public interface NodeLIRBuilderTool extends NodeMappableLIRBuilder {
+
+    // TODO (je) remove and move into the Node
+    LIRFrameState state(DeoptimizingNode deopt);
 
     void emitNullCheck(ValueNode v, DeoptimizingNode deopting);
 
@@ -50,8 +54,6 @@ public interface NodeLIRBuilderTool extends NodeMappableLIRBuilder {
 
     void visitLoopEnd(LoopEndNode i);
 
-    void visitCompareAndSwap(LoweredCompareAndSwapNode i, Value address);
-
     // These methods define the contract a runtime specific backend must provide.
 
     void visitSafepointNode(SafepointNode i);
@@ -62,7 +64,7 @@ public interface NodeLIRBuilderTool extends NodeMappableLIRBuilder {
 
     LIRGeneratorTool getLIRGeneratorTool();
 
-    void emitOverflowCheckBranch(AbstractBeginNode overflowSuccessor, AbstractBeginNode next, double probability);
+    void emitOverflowCheckBranch(BeginNode overflowSuccessor, BeginNode next, double probability);
 
     Value[] visitInvokeArguments(CallingConvention cc, Collection<ValueNode> arguments);
 

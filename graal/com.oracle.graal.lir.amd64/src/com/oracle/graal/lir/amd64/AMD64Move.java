@@ -33,7 +33,7 @@ import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.asm.*;
 import com.oracle.graal.asm.amd64.*;
-import com.oracle.graal.graph.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.lir.*;
 import com.oracle.graal.lir.StandardOp.ImplicitNullCheck;
 import com.oracle.graal.lir.StandardOp.MoveOp;
@@ -396,12 +396,15 @@ public class AMD64Move {
     @Opcode("CAS")
     public static class CompareAndSwapOp extends AMD64LIRInstruction {
 
+        private final Kind accessKind;
+
         @Def protected AllocatableValue result;
         @Use({COMPOSITE}) protected AMD64AddressValue address;
         @Use protected AllocatableValue cmpValue;
         @Use protected AllocatableValue newValue;
 
-        public CompareAndSwapOp(AllocatableValue result, AMD64AddressValue address, AllocatableValue cmpValue, AllocatableValue newValue) {
+        public CompareAndSwapOp(Kind accessKind, AllocatableValue result, AMD64AddressValue address, AllocatableValue cmpValue, AllocatableValue newValue) {
+            this.accessKind = accessKind;
             this.result = result;
             this.address = address;
             this.cmpValue = cmpValue;
@@ -410,7 +413,90 @@ public class AMD64Move {
 
         @Override
         public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
-            compareAndSwap(crb, masm, result, address, cmpValue, newValue);
+            assert asRegister(cmpValue).equals(AMD64.rax) && asRegister(result).equals(AMD64.rax);
+
+            if (crb.target.isMP) {
+                masm.lock();
+            }
+            switch (accessKind) {
+                case Int:
+                    masm.cmpxchgl(asRegister(newValue), address.toAddress());
+                    break;
+                case Long:
+                case Object:
+                    masm.cmpxchgq(asRegister(newValue), address.toAddress());
+                    break;
+                default:
+                    throw GraalInternalError.shouldNotReachHere();
+            }
+        }
+    }
+
+    @Opcode("ATOMIC_READ_AND_ADD")
+    public static class AtomicReadAndAddOp extends AMD64LIRInstruction {
+
+        private final Kind accessKind;
+
+        @Def protected AllocatableValue result;
+        @Alive({COMPOSITE}) protected AMD64AddressValue address;
+        @Use protected AllocatableValue delta;
+
+        public AtomicReadAndAddOp(Kind accessKind, AllocatableValue result, AMD64AddressValue address, AllocatableValue delta) {
+            this.accessKind = accessKind;
+            this.result = result;
+            this.address = address;
+            this.delta = delta;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            move(accessKind, crb, masm, result, delta);
+            if (crb.target.isMP) {
+                masm.lock();
+            }
+            switch (accessKind) {
+                case Int:
+                    masm.xaddl(address.toAddress(), asRegister(result));
+                    break;
+                case Long:
+                    masm.xaddq(address.toAddress(), asRegister(result));
+                    break;
+                default:
+                    throw GraalInternalError.shouldNotReachHere();
+            }
+        }
+    }
+
+    @Opcode("ATOMIC_READ_AND_WRITE")
+    public static class AtomicReadAndWriteOp extends AMD64LIRInstruction {
+
+        private final Kind accessKind;
+
+        @Def protected AllocatableValue result;
+        @Alive({COMPOSITE}) protected AMD64AddressValue address;
+        @Use protected AllocatableValue newValue;
+
+        public AtomicReadAndWriteOp(Kind accessKind, AllocatableValue result, AMD64AddressValue address, AllocatableValue newValue) {
+            this.accessKind = accessKind;
+            this.result = result;
+            this.address = address;
+            this.newValue = newValue;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            move(accessKind, crb, masm, result, newValue);
+            switch (accessKind) {
+                case Int:
+                    masm.xchgl(asRegister(result), address.toAddress());
+                    break;
+                case Long:
+                case Object:
+                    masm.xchgq(asRegister(result), address.toAddress());
+                    break;
+                default:
+                    throw GraalInternalError.shouldNotReachHere();
+            }
         }
     }
 
@@ -636,26 +722,6 @@ public class AMD64Move {
                 } else {
                     throw GraalInternalError.shouldNotReachHere("Non-null object constants must be in register");
                 }
-                break;
-            default:
-                throw GraalInternalError.shouldNotReachHere();
-        }
-    }
-
-    protected static void compareAndSwap(CompilationResultBuilder crb, AMD64MacroAssembler masm, AllocatableValue result, AMD64AddressValue address, AllocatableValue cmpValue,
-                    AllocatableValue newValue) {
-        assert asRegister(cmpValue).equals(AMD64.rax) && asRegister(result).equals(AMD64.rax);
-
-        if (crb.target.isMP) {
-            masm.lock();
-        }
-        switch (cmpValue.getKind()) {
-            case Int:
-                masm.cmpxchgl(asRegister(newValue), address.toAddress());
-                break;
-            case Long:
-            case Object:
-                masm.cmpxchgq(asRegister(newValue), address.toAddress());
                 break;
             default:
                 throw GraalInternalError.shouldNotReachHere();

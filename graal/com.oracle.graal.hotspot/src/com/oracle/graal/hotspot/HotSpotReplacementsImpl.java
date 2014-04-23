@@ -26,10 +26,11 @@ import java.lang.reflect.*;
 
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.api.replacements.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.hotspot.meta.*;
 import com.oracle.graal.hotspot.replacements.*;
 import com.oracle.graal.nodes.*;
-import com.oracle.graal.phases.*;
 import com.oracle.graal.phases.util.*;
 import com.oracle.graal.replacements.*;
 
@@ -41,8 +42,8 @@ public class HotSpotReplacementsImpl extends ReplacementsImpl {
 
     private final HotSpotVMConfig config;
 
-    public HotSpotReplacementsImpl(Providers providers, HotSpotVMConfig config, Assumptions assumptions, TargetDescription target) {
-        super(providers, assumptions, target);
+    public HotSpotReplacementsImpl(Providers providers, SnippetReflectionProvider snippetReflection, HotSpotVMConfig config, Assumptions assumptions, TargetDescription target) {
+        super(providers, snippetReflection, assumptions, target);
         this.config = config;
     }
 

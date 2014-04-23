@@ -22,7 +22,7 @@
  */
 package com.oracle.graal.replacements;
 
-import static com.oracle.graal.phases.GraalOptions.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
 
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
@@ -50,8 +50,6 @@ public class GraalMethodSubstitutions implements ReplacementsProvider {
             replacements.registerSubstitutions(CharacterSubstitutions.class);
             replacements.registerSubstitutions(ShortSubstitutions.class);
             replacements.registerSubstitutions(UnsignedMathSubstitutions.class);
-            replacements.registerSubstitutions(NodeClassSubstitutions.class);
-            replacements.registerSubstitutions(CompositeValueClassSubstitutions.class);
         }
     }
 }

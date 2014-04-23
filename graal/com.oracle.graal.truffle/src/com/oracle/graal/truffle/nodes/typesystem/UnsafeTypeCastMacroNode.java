@@ -23,12 +23,13 @@
 package com.oracle.graal.truffle.nodes.typesystem;
 
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.common.calc.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.graph.spi.*;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.calc.*;
 import com.oracle.graal.nodes.extended.*;
-import com.oracle.graal.nodes.type.*;
 import com.oracle.graal.truffle.nodes.asserts.*;
 import com.oracle.truffle.api.*;
 
@@ -55,11 +56,10 @@ public class UnsafeTypeCastMacroNode extends NeverPartOfCompilationNode implemen
         if (classArgument.isConstant() && nonNullArgument.isConstant()) {
             ValueNode objectArgument = arguments.get(OBJECT_ARGUMENT_INDEX);
             ValueNode conditionArgument = arguments.get(CONDITION_ARGUMENT_INDEX);
-            Class c = (Class) classArgument.asConstant().asObject();
-            if (c == null) {
+            ResolvedJavaType lookupJavaType = tool.getConstantReflection().asJavaType(classArgument.asConstant());
+            if (lookupJavaType == null) {
                 return objectArgument;
             }
-            ResolvedJavaType lookupJavaType = tool.getMetaAccess().lookupJavaType(c);
             Stamp stamp = StampFactory.declared(lookupJavaType, nonNullArgument.asConstant().asInt() != 0);
             ConditionAnchorNode valueAnchorNode = graph().add(new ConditionAnchorNode(CompareNode.createCompareNode(graph(), Condition.EQ, conditionArgument, ConstantNode.forBoolean(true, graph()))));
             UnsafeCastNode piCast = graph().unique(new UnsafeCastNode(objectArgument, stamp, valueAnchorNode));

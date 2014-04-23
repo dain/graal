@@ -24,18 +24,19 @@ package com.oracle.graal.hotspot.replacements;
 
 import static com.oracle.graal.api.code.UnsignedMath.*;
 import static com.oracle.graal.api.meta.MetaUtil.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
 import static com.oracle.graal.hotspot.replacements.HotSpotReplacementsUtil.*;
 import static com.oracle.graal.hotspot.replacements.NewObjectSnippets.Options.*;
 import static com.oracle.graal.nodes.PiArrayNode.*;
 import static com.oracle.graal.nodes.extended.BranchProbabilityNode.*;
-import static com.oracle.graal.phases.GraalOptions.*;
 import static com.oracle.graal.replacements.SnippetTemplate.*;
 import static com.oracle.graal.replacements.nodes.ExplodeLoopNode.*;
 
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.debug.*;
-import com.oracle.graal.graph.*;
 import com.oracle.graal.graph.Node.ConstantNodeParameter;
 import com.oracle.graal.graph.Node.NodeIntrinsic;
 import com.oracle.graal.hotspot.*;
@@ -46,9 +47,7 @@ import com.oracle.graal.nodes.debug.*;
 import com.oracle.graal.nodes.extended.*;
 import com.oracle.graal.nodes.java.*;
 import com.oracle.graal.nodes.spi.*;
-import com.oracle.graal.nodes.type.*;
 import com.oracle.graal.options.*;
-import com.oracle.graal.phases.util.*;
 import com.oracle.graal.replacements.*;
 import com.oracle.graal.replacements.Snippet.ConstantParameter;
 import com.oracle.graal.replacements.Snippet.Fold;
@@ -106,7 +105,7 @@ public class NewObjectSnippets implements Snippets {
         return ProfileAllocations.getValue();
     }
 
-    private static void profileAllocation(String path, long size, String typeContext) {
+    protected static void profileAllocation(String path, long size, String typeContext) {
         if (doProfile()) {
             String name = createName(path, typeContext);
 
@@ -348,7 +347,7 @@ public class NewObjectSnippets implements Snippets {
     /**
      * Formats some allocated memory with an object header and zeroes out the rest.
      */
-    private static Object formatObject(Word hub, int size, Word memory, Word compileTimePrototypeMarkWord, boolean fillContents, boolean constantSize, boolean noAsserts, boolean useSnippetCounters) {
+    protected static Object formatObject(Word hub, int size, Word memory, Word compileTimePrototypeMarkWord, boolean fillContents, boolean constantSize, boolean noAsserts, boolean useSnippetCounters) {
         Word prototypeMarkWord = useBiasedLocking() ? hub.readWord(prototypeMarkWordOffset(), PROTOTYPE_MARK_WORD_LOCATION) : compileTimePrototypeMarkWord;
         initializeObjectHeader(memory, prototypeMarkWord, hub);
         if (fillContents) {
@@ -382,8 +381,8 @@ public class NewObjectSnippets implements Snippets {
         private final SnippetInfo allocateInstanceDynamic = snippet(NewObjectSnippets.class, "allocateInstanceDynamic");
         private final SnippetInfo newmultiarray = snippet(NewObjectSnippets.class, "newmultiarray");
 
-        public Templates(Providers providers, TargetDescription target) {
-            super(providers, target);
+        public Templates(HotSpotProviders providers, TargetDescription target) {
+            super(providers, providers.getSnippetReflection(), target);
         }
 
         /**

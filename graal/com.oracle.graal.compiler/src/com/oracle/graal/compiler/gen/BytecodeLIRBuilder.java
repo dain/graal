@@ -22,10 +22,9 @@
  */
 package com.oracle.graal.compiler.gen;
 
-import java.lang.reflect.*;
-
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.lir.gen.*;
 
 public class BytecodeLIRBuilder {
     protected final LIRGenerator gen;
@@ -53,7 +52,7 @@ public class BytecodeLIRBuilder {
         gen.emitIncomingValues(params);
 
         Signature sig = method.getSignature();
-        boolean isStatic = Modifier.isStatic(method.getModifiers());
+        boolean isStatic = method.isStatic();
         for (int i = 0; i < sig.getParameterCount(!isStatic); i++) {
             Value paramValue = params[i];
             assert paramValue.getKind() == sig.getParameterKind(i).getStackKind();

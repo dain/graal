@@ -25,11 +25,7 @@ package com.oracle.graal.java;
 import static com.oracle.graal.api.meta.DeoptimizationAction.*;
 import static com.oracle.graal.api.meta.DeoptimizationReason.*;
 import static com.oracle.graal.bytecode.Bytecodes.*;
-import static com.oracle.graal.java.GraphBuilderPhase.RuntimeCalls.*;
-import static com.oracle.graal.phases.GraalOptions.*;
-import static java.lang.reflect.Modifier.*;
-
-import java.lang.reflect.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
 import java.util.*;
 
 import com.oracle.graal.api.code.*;
@@ -37,6 +33,9 @@ import com.oracle.graal.api.meta.*;
 import com.oracle.graal.api.meta.ProfilingInfo.TriState;
 import com.oracle.graal.api.meta.ResolvedJavaType.Representation;
 import com.oracle.graal.bytecode.*;
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.calc.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.debug.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.graph.Node.ValueNumberable;
@@ -45,7 +44,6 @@ import com.oracle.graal.java.BciBlockMapping.ExceptionDispatchBlock;
 import com.oracle.graal.java.BciBlockMapping.LocalLiveness;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.calc.*;
-import com.oracle.graal.nodes.calc.FloatConvertNode.FloatConvert;
 import com.oracle.graal.nodes.extended.*;
 import com.oracle.graal.nodes.java.*;
 import com.oracle.graal.nodes.java.MethodCallTargetNode.InvokeKind;
@@ -58,12 +56,6 @@ import com.oracle.graal.phases.tiers.*;
  * The {@code GraphBuilder} class parses the bytecode of a method and builds the IR graph.
  */
 public class GraphBuilderPhase extends BasePhase<HighTierContext> {
-
-    public static final class RuntimeCalls {
-
-        public static final ForeignCallDescriptor CREATE_NULL_POINTER_EXCEPTION = new ForeignCallDescriptor("createNullPointerException", NullPointerException.class);
-        public static final ForeignCallDescriptor CREATE_OUT_OF_BOUNDS_EXCEPTION = new ForeignCallDescriptor("createOutOfBoundsException", ArrayIndexOutOfBoundsException.class, int.class);
-    }
 
     private final GraphBuilderConfiguration graphBuilderConfig;
 
@@ -122,13 +114,10 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
             }
         }
 
-        private BciBlock[] loopHeaders;
-        private LocalLiveness liveness;
-
         /**
          * Gets the current frame state being processed by this builder.
          */
-        protected AbstractFrameStateBuilder<ValueNode> getCurrentFrameState() {
+        protected HIRFrameStateBuilder getCurrentFrameState() {
             return parser.getFrameState();
         }
 
@@ -200,6 +189,8 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
 
         class BytecodeParser extends AbstractBytecodeParser<ValueNode, HIRFrameStateBuilder> {
 
+            private BciBlock[] loopHeaders;
+            private LocalLiveness liveness;
             /**
              * Head of placeholder list.
              */
@@ -225,9 +216,9 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                     liveness = blockMap.liveness;
 
                     lastInstr = currentGraph.start();
-                    if (isSynchronized(method.getModifiers())) {
+                    if (method.isSynchronized()) {
                         // add a monitor enter to the start block
-                        currentGraph.start().setStateAfter(frameState.create(FrameState.BEFORE_BCI));
+                        currentGraph.start().setStateAfter(frameState.create(BytecodeFrame.BEFORE_BCI));
                         methodSynchronizedObject = synchronizedObject(frameState, method);
                         lastInstr = genMonitorEnter(methodSynchronizedObject);
                     }
@@ -290,12 +281,12 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
             protected void finishPrepare(FixedWithNextNode startInstr) {
             }
 
-            private BciBlock unwindBlock(int bci) {
+            private BciBlock unwindBlock() {
                 if (unwindBlock == null) {
                     unwindBlock = new ExceptionDispatchBlock();
                     unwindBlock.startBci = -1;
                     unwindBlock.endBci = -1;
-                    unwindBlock.deoptBci = bci;
+                    unwindBlock.deoptBci = method.isSynchronized() ? BytecodeFrame.UNWIND_BCI : BytecodeFrame.AFTER_EXCEPTION_BCI;
                     unwindBlock.setId(Integer.MAX_VALUE);
                 }
                 return unwindBlock;
@@ -415,7 +406,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
             }
 
             private DispatchBeginNode handleException(ValueNode exceptionObject, int bci) {
-                assert bci == FrameState.BEFORE_BCI || bci == bci() : "invalid bci";
+                assert bci == BytecodeFrame.BEFORE_BCI || bci == bci() : "invalid bci";
                 Debug.log("Creating exception dispatch edges at %d, exception object=%s, exception seen=%s", bci, exceptionObject, profilingInfo.getExceptionSeen(bci));
 
                 BciBlock dispatchBlock = currentBlock.exceptionDispatchBlock();
@@ -425,7 +416,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                  * unwind immediately.
                  */
                 if (bci != currentBlock.endBci || dispatchBlock == null) {
-                    dispatchBlock = unwindBlock(bci);
+                    dispatchBlock = unwindBlock();
                 }
 
                 HIRFrameStateBuilder dispatchState = frameState.copy();
@@ -642,7 +633,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
 
             @Override
             protected void emitNullCheck(ValueNode receiver) {
-                if (ObjectStamp.isObjectNonNull(receiver.stamp())) {
+                if (StampTool.isObjectNonNull(receiver.stamp())) {
                     return;
                 }
                 BlockPlaceholderNode trueSucc = currentGraph.add(new BlockPlaceholderNode(this));
@@ -650,16 +641,10 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 append(new IfNode(currentGraph.unique(new IsNullNode(receiver)), trueSucc, falseSucc, 0.01));
                 lastInstr = falseSucc;
 
-                if (OmitHotExceptionStacktrace.getValue()) {
-                    ValueNode exception = ConstantNode.forObject(cachedNullPointerException, metaAccess, currentGraph);
-                    trueSucc.setNext(handleException(exception, bci()));
-                } else {
-                    DeferredForeignCallNode call = currentGraph.add(new DeferredForeignCallNode(CREATE_NULL_POINTER_EXCEPTION));
-                    call.setStamp(StampFactory.exactNonNull(metaAccess.lookupJavaType(CREATE_NULL_POINTER_EXCEPTION.getResultType())));
-                    call.setStateAfter(frameState.create(bci()));
-                    trueSucc.setNext(call);
-                    call.setNext(handleException(call, bci()));
-                }
+                BytecodeExceptionNode exception = currentGraph.add(new BytecodeExceptionNode(metaAccess, NullPointerException.class));
+                exception.setStateAfter(frameState.create(bci()));
+                trueSucc.setNext(exception);
+                exception.setNext(handleException(exception, bci()));
             }
 
             @Override
@@ -669,16 +654,10 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 append(new IfNode(currentGraph.unique(new IntegerBelowThanNode(index, length)), trueSucc, falseSucc, 0.99));
                 lastInstr = trueSucc;
 
-                if (OmitHotExceptionStacktrace.getValue()) {
-                    ValueNode exception = ConstantNode.forObject(cachedArrayIndexOutOfBoundsException, metaAccess, currentGraph);
-                    falseSucc.setNext(handleException(exception, bci()));
-                } else {
-                    DeferredForeignCallNode call = currentGraph.add(new DeferredForeignCallNode(CREATE_OUT_OF_BOUNDS_EXCEPTION, index));
-                    call.setStamp(StampFactory.exactNonNull(metaAccess.lookupJavaType(CREATE_OUT_OF_BOUNDS_EXCEPTION.getResultType())));
-                    call.setStateAfter(frameState.create(bci()));
-                    falseSucc.setNext(call);
-                    call.setNext(handleException(call, bci()));
-                }
+                BytecodeExceptionNode exception = currentGraph.add(new BytecodeExceptionNode(metaAccess, ArrayIndexOutOfBoundsException.class, index));
+                exception.setStateAfter(frameState.create(bci()));
+                falseSucc.setNext(exception);
+                exception.setNext(handleException(exception, bci()));
             }
 
             @Override
@@ -720,9 +699,9 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
             @Override
             protected void genInvokeDynamic(JavaMethod target) {
                 if (target instanceof ResolvedJavaMethod) {
-                    Object appendix = constantPool.lookupAppendix(stream.readCPI4(), Bytecodes.INVOKEDYNAMIC);
+                    Constant appendix = constantPool.lookupAppendix(stream.readCPI4(), Bytecodes.INVOKEDYNAMIC);
                     if (appendix != null) {
-                        frameState.apush(ConstantNode.forObject(appendix, metaAccess, currentGraph));
+                        frameState.apush(ConstantNode.forConstant(appendix, metaAccess, currentGraph));
                     }
                     ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(false), target.getSignature().getParameterCount(false));
                     appendInvoke(InvokeKind.Static, (ResolvedJavaMethod) target, args);
@@ -741,10 +720,10 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                      * https://wikis.oracle.com/display/HotSpotInternals/Method+handles
                      * +and+invokedynamic
                      */
-                    boolean hasReceiver = !isStatic(((ResolvedJavaMethod) target).getModifiers());
-                    Object appendix = constantPool.lookupAppendix(stream.readCPI(), Bytecodes.INVOKEVIRTUAL);
+                    boolean hasReceiver = !((ResolvedJavaMethod) target).isStatic();
+                    Constant appendix = constantPool.lookupAppendix(stream.readCPI(), Bytecodes.INVOKEVIRTUAL);
                     if (appendix != null) {
-                        frameState.apush(ConstantNode.forObject(appendix, metaAccess, currentGraph));
+                        frameState.apush(ConstantNode.forConstant(appendix, metaAccess, currentGraph));
                     }
                     ValueNode[] args = frameState.popArguments(target.getSignature().getParameterSlots(hasReceiver), target.getSignature().getParameterCount(hasReceiver));
                     if (hasReceiver) {
@@ -834,7 +813,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                     append(new InfopointNode(InfopointReason.METHOD_END, frameState.create(bci())));
                 }
 
-                synchronizedEpilogue(FrameState.AFTER_BCI, x);
+                synchronizedEpilogue(BytecodeFrame.AFTER_BCI, x);
                 if (frameState.lockDepth() != 0) {
                     throw new BailoutException("unbalanced monitors");
                 }
@@ -890,13 +869,12 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
             }
 
             @Override
-            protected void setBlockSuccessor(ValueNode switchNode, int i, ValueNode createBlockTarget) {
-                ((IntegerSwitchNode) switchNode).setBlockSuccessor(i, (AbstractBeginNode) createBlockTarget);
-            }
-
-            @Override
-            protected ValueNode genIntegerSwitch(ValueNode value, int size, int[] keys, double[] keyProbabilities, int[] keySuccessors) {
-                return new IntegerSwitchNode(value, size, keys, keyProbabilities, keySuccessors);
+            protected void genIntegerSwitch(ValueNode value, ArrayList<BciBlock> actualSuccessors, int[] keys, double[] keyProbabilities, int[] keySuccessors) {
+                double[] successorProbabilities = successorProbabilites(actualSuccessors.size(), keySuccessors, keyProbabilities);
+                IntegerSwitchNode switchNode = append(new IntegerSwitchNode(value, actualSuccessors.size(), keys, keyProbabilities, keySuccessors));
+                for (int i = 0; i < actualSuccessors.size(); i++) {
+                    switchNode.setBlockSuccessor(i, createBlockTarget(successorProbabilities[i], actualSuccessors.get(i), frameState));
+                }
             }
 
             @Override
@@ -997,7 +975,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                             }
                             lastLoopExit = loopExit;
                             Debug.log("Target %s (%s) Exits %s, scanning framestates...", targetBlock, target, loop);
-                            newState.insertLoopProxies(loopExit, loop.entryState);
+                            newState.insertLoopProxies(loopExit, (HIRFrameStateBuilder) loop.entryState);
                             loopExit.setStateAfter(newState.create(bci));
                         }
 
@@ -1008,25 +986,17 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 return new Target(target, state);
             }
 
-            @Override
-            protected ValueNode genDeoptimization() {
-                return currentGraph.add(new DeoptimizeNode(InvalidateReprofile, UnreachedCode));
-            }
-
-            protected FixedNode createTarget(double probability, BciBlock block, AbstractFrameStateBuilder<ValueNode> stateAfter) {
+            private FixedNode createTarget(double probability, BciBlock block, HIRFrameStateBuilder stateAfter) {
                 assert probability >= 0 && probability <= 1.01 : probability;
                 if (isNeverExecutedCode(probability)) {
-                    return (FixedNode) genDeoptimization();
+                    return currentGraph.add(new DeoptimizeNode(InvalidateReprofile, UnreachedCode));
                 } else {
                     assert block != null;
                     return createTarget(block, stateAfter);
                 }
-
             }
 
-            protected FixedNode createTarget(BciBlock block, AbstractFrameStateBuilder<ValueNode> abstractState) {
-                assert abstractState instanceof HIRFrameStateBuilder;
-                HIRFrameStateBuilder state = (HIRFrameStateBuilder) abstractState;
+            private FixedNode createTarget(BciBlock block, HIRFrameStateBuilder state) {
                 assert block != null && state != null;
                 assert !block.isExceptionEntry || state.stackSize() == 1;
 
@@ -1047,7 +1017,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 }
 
                 // We already saw this block before, so we have to merge states.
-                if (!block.entryState.isCompatibleWith(state)) {
+                if (!((HIRFrameStateBuilder) block.entryState).isCompatibleWith(state)) {
                     throw new BailoutException("stacks do not match; bytecodes would not verify");
                 }
 
@@ -1060,7 +1030,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                     LoopBeginNode loopBegin = (LoopBeginNode) block.firstInstruction;
                     Target target = checkLoopExit(currentGraph.add(new LoopEndNode(loopBegin)), block, state);
                     FixedNode result = target.fixed;
-                    block.entryState.merge(loopBegin, target.state);
+                    ((HIRFrameStateBuilder) block.entryState).merge(loopBegin, target.state);
 
                     Debug.log("createTarget %s: merging backward branch to loop header %s, result: %s", block, loopBegin, result);
                     return result;
@@ -1095,7 +1065,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 AbstractEndNode newEnd = currentGraph.add(new EndNode());
                 Target target = checkLoopExit(newEnd, block, state);
                 FixedNode result = target.fixed;
-                block.entryState.merge(mergeNode, target.state);
+                ((HIRFrameStateBuilder) block.entryState).merge(mergeNode, target.state);
                 mergeNode.addForwardEnd(newEnd);
 
                 Debug.log("createTarget %s: merging state, result: %s", block, result);
@@ -1106,18 +1076,17 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
              * Returns a block begin node with the specified state. If the specified probability is
              * 0, the block deoptimizes immediately.
              */
-            @Override
-            protected AbstractBeginNode createBlockTarget(double probability, BciBlock block, AbstractFrameStateBuilder<ValueNode> stateAfter) {
+            private BeginNode createBlockTarget(double probability, BciBlock block, HIRFrameStateBuilder stateAfter) {
                 FixedNode target = createTarget(probability, block, stateAfter);
-                AbstractBeginNode begin = AbstractBeginNode.begin(target);
+                BeginNode begin = BeginNode.begin(target);
 
-                assert !(target instanceof DeoptimizeNode && begin.stateAfter() != null) : "We are not allowed to set the stateAfter of the begin node, because we have to deoptimize "
+                assert !(target instanceof DeoptimizeNode && begin instanceof BeginStateSplitNode && ((BeginStateSplitNode) begin).stateAfter() != null) : "We are not allowed to set the stateAfter of the begin node, because we have to deoptimize "
                                 + "to a bci _before_ the actual if, so that the interpreter can update the profiling information.";
                 return begin;
             }
 
             private ValueNode synchronizedObject(HIRFrameStateBuilder state, ResolvedJavaMethod target) {
-                if (isStatic(target.getModifiers())) {
+                if (target.isStatic()) {
                     return appendConstant(target.getDeclaringClass().getEncoding(Representation.JavaClass));
                 } else {
                     return state.loadLocal(0);
@@ -1134,7 +1103,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 try (Indent indent = Debug.logAndIndent("Parsing block %s  firstInstruction: %s  loopHeader: %b", block, block.firstInstruction, block.isLoopHeader)) {
 
                     lastInstr = block.firstInstruction;
-                    frameState = block.entryState;
+                    frameState = (HIRFrameStateBuilder) block.entryState;
                     parser.setCurrentFrameState(frameState);
                     currentBlock = block;
 
@@ -1183,13 +1152,12 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
             private void createUnwind() {
                 assert frameState.stackSize() == 1 : frameState;
                 ValueNode exception = frameState.apop();
-                append(new FixedGuardNode(currentGraph.unique(new IsNullNode(exception)), NullCheckException, InvalidateReprofile, true));
-                synchronizedEpilogue(FrameState.AFTER_EXCEPTION_BCI, null);
+                synchronizedEpilogue(BytecodeFrame.AFTER_EXCEPTION_BCI, null);
                 append(new UnwindNode(exception));
             }
 
             private void synchronizedEpilogue(int bci, ValueNode returnValue) {
-                if (Modifier.isSynchronized(method.getModifiers())) {
+                if (method.isSynchronized()) {
                     MonitorExitNode monitorExit = genMonitorExit(methodSynchronizedObject, returnValue);
                     if (returnValue != null) {
                         frameState.push(returnValue.getKind(), returnValue);
@@ -1216,7 +1184,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                     ResolvedJavaType resolvedCatchType = (ResolvedJavaType) catchType;
                     for (ResolvedJavaType skippedType : graphBuilderConfig.getSkippedExceptionTypes()) {
                         if (skippedType.isAssignableFrom(resolvedCatchType)) {
-                            BciBlock nextBlock = block.getSuccessorCount() == 1 ? unwindBlock(block.deoptBci) : block.getSuccessor(1);
+                            BciBlock nextBlock = block.getSuccessorCount() == 1 ? unwindBlock() : block.getSuccessor(1);
                             ValueNode exception = frameState.stackAt(0);
                             FixedNode trueSuccessor = currentGraph.add(new DeoptimizeNode(InvalidateReprofile, UnreachedCode));
                             FixedNode nextDispatch = createTarget(nextBlock, frameState);
@@ -1227,7 +1195,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 }
 
                 if (initialized) {
-                    BciBlock nextBlock = block.getSuccessorCount() == 1 ? unwindBlock(block.deoptBci) : block.getSuccessor(1);
+                    BciBlock nextBlock = block.getSuccessorCount() == 1 ? unwindBlock() : block.getSuccessor(1);
                     ValueNode exception = frameState.stackAt(0);
                     CheckCastNode checkCast = currentGraph.add(new CheckCastNode((ResolvedJavaType) catchType, exception, null, false));
                     frameState.apop();
@@ -1243,10 +1211,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                 }
             }
 
-            @Override
-            protected void appendGoto(ValueNode targetNode) {
-                assert targetNode instanceof FixedNode;
-                FixedNode target = (FixedNode) targetNode;
+            private void appendGoto(FixedNode target) {
                 if (lastInstr != null) {
                     lastInstr.setNext(target);
                 }
@@ -1332,7 +1297,7 @@ public class GraphBuilderPhase extends BasePhase<HighTierContext> {
                         frameState.clearNonLiveLocals(currentBlock, liveness, false);
                     }
                     if (lastInstr instanceof StateSplit) {
-                        if (lastInstr.getClass() == AbstractBeginNode.class) {
+                        if (lastInstr.getClass() == BeginNode.class) {
                             // BeginNodes do not need a frame state
                         } else {
                             StateSplit stateSplit = (StateSplit) lastInstr;

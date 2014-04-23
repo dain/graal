@@ -23,10 +23,10 @@
 package com.oracle.graal.nodes.java;
 
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.graph.spi.*;
 import com.oracle.graal.nodes.*;
-import com.oracle.graal.nodes.type.*;
 
 public class DynamicNewInstanceNode extends AbstractNewObjectNode implements Canonicalizable {
 
@@ -40,13 +40,9 @@ public class DynamicNewInstanceNode extends AbstractNewObjectNode implements Can
     @Override
     public Node canonical(CanonicalizerTool tool) {
         if (clazz.isConstant()) {
-            Constant clazzConstant = clazz.asConstant();
-            if (clazzConstant.getKind() == Kind.Object && clazzConstant.asObject() instanceof Class) {
-                Class staticClass = (Class) clazzConstant.asObject();
-                ResolvedJavaType type = tool.getMetaAccess().lookupJavaType(staticClass);
-                if (type.isInitialized()) {
-                    return graph().add(new NewInstanceNode(type, fillContents()));
-                }
+            ResolvedJavaType type = tool.getConstantReflection().asJavaType(clazz.asConstant());
+            if (type != null && type.isInitialized()) {
+                return graph().add(new NewInstanceNode(type, fillContents()));
             }
         }
         return this;
@@ -57,5 +53,5 @@ public class DynamicNewInstanceNode extends AbstractNewObjectNode implements Can
     }
 
     @NodeIntrinsic
-    public static native Object allocateInstance(Class clazz, @ConstantNodeParameter boolean fillContents);
+    public static native Object allocateInstance(Class<?> clazz, @ConstantNodeParameter boolean fillContents);
 }

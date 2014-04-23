@@ -22,14 +22,14 @@
  */
 package com.oracle.graal.nodes.extended;
 
-import static com.oracle.graal.graph.UnsafeAccess.*;
+import static com.oracle.graal.compiler.common.UnsafeAccess.*;
 
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.java.*;
 import com.oracle.graal.nodes.spi.*;
-import com.oracle.graal.nodes.type.*;
 
 /**
  * Store of a value at a location specified as an offset relative to an object. No null check is
@@ -106,6 +106,11 @@ public class UnsafeStoreNode extends UnsafeAccessNode implements StateSplit, Low
         StoreFieldNode storeFieldNode = graph().add(new StoreFieldNode(object(), field, value()));
         storeFieldNode.setStateAfter(stateAfter());
         return storeFieldNode;
+    }
+
+    @Override
+    protected ValueNode cloneAsArrayAccess(ValueNode location, LocationIdentity identity) {
+        return this.graph().add(new UnsafeStoreNode(object(), location, value, accessKind(), identity));
     }
 
     public FrameState getState() {

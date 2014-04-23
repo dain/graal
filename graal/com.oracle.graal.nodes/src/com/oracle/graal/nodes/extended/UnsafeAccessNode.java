@@ -23,6 +23,7 @@
 package com.oracle.graal.nodes.extended;
 
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.graph.spi.*;
 import com.oracle.graal.nodes.*;
@@ -66,7 +67,7 @@ public abstract class UnsafeAccessNode extends FixedWithNextNode implements Cano
             long constantOffset = offset().asConstant().asLong();
 
             // Try to canonicalize to a field access.
-            ResolvedJavaType receiverType = ObjectStamp.typeOrNull(object());
+            ResolvedJavaType receiverType = StampTool.typeOrNull(object());
             if (receiverType != null) {
                 ResolvedJavaField field = receiverType.findInstanceFieldWithOffset(constantOffset);
                 // No need for checking that the receiver is non-null. The field access includes
@@ -78,8 +79,20 @@ public abstract class UnsafeAccessNode extends FixedWithNextNode implements Cano
                 }
             }
         }
+        if (this.getLocationIdentity() == LocationIdentity.ANY_LOCATION) {
+            ResolvedJavaType receiverType = StampTool.typeOrNull(object());
+            // Try to build a better location identity.
+            if (receiverType != null && receiverType.isArray()) {
+                LocationIdentity identity = NamedLocationIdentity.getArrayLocation(receiverType.getComponentType().getKind());
+                assert !graph().isAfterFloatingReadPhase() : "cannot add more precise memory location after floating read phase";
+                return cloneAsArrayAccess(offset(), identity);
+            }
+        }
+
         return this;
     }
 
     protected abstract ValueNode cloneAsFieldAccess(ResolvedJavaField field);
+
+    protected abstract ValueNode cloneAsArrayAccess(ValueNode location, LocationIdentity identity);
 }

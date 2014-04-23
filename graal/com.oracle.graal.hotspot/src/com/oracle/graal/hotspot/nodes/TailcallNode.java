@@ -24,19 +24,18 @@ package com.oracle.graal.hotspot.nodes;
 
 import static com.oracle.graal.hotspot.HotSpotGraalRuntime.*;
 
-import java.lang.reflect.*;
 import java.util.*;
 
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
-import com.oracle.graal.compiler.gen.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.compiler.target.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.java.*;
+import com.oracle.graal.lir.gen.*;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.spi.*;
-import com.oracle.graal.nodes.type.*;
 
 /**
  * Performs a tail call to the specified target compiled method, with the parameter taken from the
@@ -62,7 +61,7 @@ public class TailcallNode extends FixedWithNextNode implements LIRGenResLowerabl
     public void generate(NodeLIRBuilderTool gen, LIRGenerationResult res) {
         HotSpotVMConfig config = runtime().getConfig();
         ResolvedJavaMethod method = frameState.method();
-        boolean isStatic = Modifier.isStatic(method.getModifiers());
+        boolean isStatic = method.isStatic();
 
         JavaType[] signature = MetaUtil.signatureToTypes(method.getSignature(), isStatic ? null : method.getDeclaringClass());
         CallingConvention cc = res.getFrameMap().registerConfig.getCallingConvention(CallingConvention.Type.JavaCall, null, signature, gen.getLIRGeneratorTool().target(), false);

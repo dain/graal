@@ -48,7 +48,6 @@ import com.oracle.graal.nodes.spi.*;
 import com.oracle.graal.nodes.type.*;
 import com.oracle.graal.options.*;
 import com.oracle.graal.phases.common.*;
-import com.oracle.graal.phases.util.*;
 import com.oracle.graal.replacements.*;
 import com.oracle.graal.replacements.Snippet.ConstantParameter;
 import com.oracle.graal.replacements.Snippet.Fold;
@@ -417,8 +416,8 @@ public class MonitorSnippets implements Snippets {
 
         private final boolean useFastLocking;
 
-        public Templates(Providers providers, TargetDescription target, boolean useFastLocking) {
-            super(providers, target);
+        public Templates(HotSpotProviders providers, TargetDescription target, boolean useFastLocking) {
+            super(providers, providers.getSnippetReflection(), target);
             this.useFastLocking = useFastLocking;
         }
 
@@ -458,7 +457,7 @@ public class MonitorSnippets implements Snippets {
         }
 
         static boolean isTracingEnabledForType(ValueNode object) {
-            ResolvedJavaType type = ObjectStamp.typeOrNull(object.stamp());
+            ResolvedJavaType type = StampTool.typeOrNull(object.stamp());
             if (TRACE_TYPE_FILTER == null) {
                 return false;
             } else {
@@ -508,11 +507,11 @@ public class MonitorSnippets implements Snippets {
                     for (ReturnNode ret : rets) {
                         returnType = checkCounter.getMethod().getSignature().getReturnType(checkCounter.getMethod().getDeclaringClass());
                         String msg = "unbalanced monitors in " + MetaUtil.format("%H.%n(%p)", graph.method()) + ", count = %d";
-                        ConstantNode errMsg = ConstantNode.forObject(msg, providers.getMetaAccess(), graph);
+                        ConstantNode errMsg = ConstantNode.forConstant(HotSpotObjectConstant.forObject(msg), providers.getMetaAccess(), graph);
                         callTarget = graph.add(new MethodCallTargetNode(InvokeKind.Static, checkCounter.getMethod(), new ValueNode[]{errMsg}, returnType));
                         invoke = graph.add(new InvokeNode(callTarget, 0));
                         List<ValueNode> stack = Collections.emptyList();
-                        FrameState stateAfter = new FrameState(graph.method(), FrameState.AFTER_BCI, new ValueNode[0], stack, new ValueNode[0], new MonitorIdNode[0], false, false);
+                        FrameState stateAfter = new FrameState(graph.method(), BytecodeFrame.AFTER_BCI, new ValueNode[0], stack, new ValueNode[0], new MonitorIdNode[0], false, false);
                         invoke.setStateAfter(graph.add(stateAfter));
                         graph.addBeforeFixed(ret, invoke);
 

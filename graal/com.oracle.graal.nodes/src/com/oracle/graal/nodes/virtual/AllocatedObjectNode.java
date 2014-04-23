@@ -22,11 +22,11 @@
  */
 package com.oracle.graal.nodes.virtual;
 
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.calc.*;
 import com.oracle.graal.nodes.spi.*;
-import com.oracle.graal.nodes.type.*;
 
 /**
  * Selects one object from a {@link CommitAllocationNode}. The object is identified by its
@@ -35,7 +35,7 @@ import com.oracle.graal.nodes.type.*;
 public class AllocatedObjectNode extends FloatingNode implements Virtualizable, ArrayLengthProvider {
 
     @Input private VirtualObjectNode virtualObject;
-    @Input(InputType.Association) private CommitAllocationNode commit;
+    @Input(InputType.Extension) private CommitAllocationNode commit;
 
     public AllocatedObjectNode(VirtualObjectNode virtualObject) {
         super(StampFactory.exactNonNull(virtualObject.type()));

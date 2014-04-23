@@ -22,8 +22,6 @@
  */
 package com.oracle.graal.api.meta;
 
-import static java.lang.reflect.Modifier.*;
-
 import java.io.*;
 import java.lang.annotation.*;
 import java.lang.reflect.*;
@@ -50,18 +48,18 @@ public class MetaUtil {
     /**
      * Returns the number of bytes occupied by this constant value or constant object and
      * recursively all values reachable from this value.
-     * 
+     *
      * @param constant the constant whose bytes should be measured
      * @param printTopN print total size and instance count of the top n classes is desired
      * @return the number of bytes occupied by this constant
      */
-    public static long getMemorySizeRecursive(MetaAccessProvider access, Constant constant, PrintStream out, int printTopN) {
-        IdentityHashMap<Object, Boolean> marked = new IdentityHashMap<>();
+    public static long getMemorySizeRecursive(MetaAccessProvider access, ConstantReflectionProvider constantReflection, Constant constant, PrintStream out, int printTopN) {
+        Set<Constant> marked = new HashSet<>();
         Stack<Constant> stack = new Stack<>();
         if (constant.getKind() == Kind.Object && constant.isNonNull()) {
-            marked.put(constant.asObject(), Boolean.TRUE);
+            marked.add(constant);
         }
-        final HashMap<Class, ClassInfo> histogram = new HashMap<>();
+        final HashMap<ResolvedJavaType, ClassInfo> histogram = new HashMap<>();
         stack.push(constant);
         long sum = 0;
         while (!stack.isEmpty()) {
@@ -69,7 +67,7 @@ public class MetaUtil {
             long memorySize = access.getMemorySize(constant);
             sum += memorySize;
             if (c.getKind() == Kind.Object && c.isNonNull()) {
-                Class<?> clazz = c.asObject().getClass();
+                ResolvedJavaType clazz = access.lookupJavaType(c);
                 if (!histogram.containsKey(clazz)) {
                     histogram.put(clazz, new ClassInfo());
                 }
@@ -79,10 +77,10 @@ public class MetaUtil {
                 ResolvedJavaType type = access.lookupJavaType(c);
                 if (type.isArray()) {
                     if (!type.getComponentType().isPrimitive()) {
-                        Object[] array = (Object[]) c.asObject();
-                        for (Object value : array) {
-                            Constant forObject = Constant.forObject(value);
-                            pushConstant(marked, stack, forObject);
+                        int length = constantReflection.readArrayLength(c);
+                        for (int i = 0; i < length; i++) {
+                            Constant value = constantReflection.readArrayElement(c, i);
+                            pushConstant(marked, stack, value);
                         }
                     }
                 } else {
@@ -96,12 +94,12 @@ public class MetaUtil {
                 }
             }
         }
-        ArrayList<Class> clazzes = new ArrayList<>();
+        ArrayList<ResolvedJavaType> clazzes = new ArrayList<>();
         clazzes.addAll(histogram.keySet());
-        Collections.sort(clazzes, new Comparator<Class>() {
+        Collections.sort(clazzes, new Comparator<ResolvedJavaType>() {
 
             @Override
-            public int compare(Class o1, Class o2) {
+            public int compare(ResolvedJavaType o1, ResolvedJavaType o2) {
                 long l1 = histogram.get(o1).totalSize;
                 long l2 = histogram.get(o2).totalSize;
                 if (l1 > l2) {
@@ -115,7 +113,7 @@ public class MetaUtil {
         });
 
         int z = 0;
-        for (Class c : clazzes) {
+        for (ResolvedJavaType c : clazzes) {
             if (z > printTopN) {
                 break;
             }
@@ -126,10 +124,10 @@ public class MetaUtil {
         return sum;
     }
 
-    private static void pushConstant(IdentityHashMap<Object, Boolean> marked, Stack<Constant> stack, Constant value) {
+    private static void pushConstant(Set<Constant> marked, Stack<Constant> stack, Constant value) {
         if (value.isNonNull()) {
-            if (!marked.containsKey(value.asObject())) {
-                marked.put(value.asObject(), Boolean.TRUE);
+            if (!marked.contains(value)) {
+                marked.add(value);
                 stack.push(value);
             }
         }
@@ -158,7 +156,7 @@ public class MetaUtil {
     /**
      * Calls {@link MetaAccessProvider#lookupJavaType(Class)} on an array of classes.
      */
-    public static ResolvedJavaType[] lookupJavaTypes(MetaAccessProvider metaAccess, Class[] classes) {
+    public static ResolvedJavaType[] lookupJavaTypes(MetaAccessProvider metaAccess, Class<?>[] classes) {
         ResolvedJavaType[] result = new ResolvedJavaType[classes.length];
         for (int i = 0; i < result.length; i++) {
             result[i] = metaAccess.lookupJavaType(classes[i]);
@@ -182,7 +180,7 @@ public class MetaUtil {
     /**
      * Extends the functionality of {@link Class#getSimpleName()} to include a non-empty string for
      * anonymous and local classes.
-     * 
+     *
      * @param clazz the class for which the simple name is being requested
      * @param withEnclosingClass specifies if the returned name should be qualified with the name(s)
      *            of the enclosing class/classes of {@code clazz} (if any). This option is ignored
@@ -218,7 +216,7 @@ public class MetaUtil {
     /**
      * Converts a given type to its Java programming language name. The following are examples of
      * strings returned by this method:
-     * 
+     *
      * <pre>
      *     qualified == true:
      *         java.lang.Object
@@ -229,7 +227,7 @@ public class MetaUtil {
      *         int
      *         boolean[][]
      * </pre>
-     * 
+     *
      * @param type the type to be converted to a Java name
      * @param qualified specifies if the package prefix of the type should be included in the
      *            returned name
@@ -246,13 +244,13 @@ public class MetaUtil {
     /**
      * Converts a given type to its Java programming language name. The following are examples of
      * strings returned by this method:
-     * 
+     *
      * <pre>
      *      java.lang.Object
      *      int
      *      boolean[][]
      * </pre>
-     * 
+     *
      * @param type the type to be converted to a Java name
      * @return the Java name corresponding to {@code type}
      */
@@ -308,7 +306,7 @@ public class MetaUtil {
      * and specifiers that denote an attribute of the method that is to be copied to the result. A
      * specifier is a single character preceded by a '%' character. The accepted specifiers and the
      * method attributes they denote are described below:
-     * 
+     *
      * <pre>
      *     Specifier | Description                                          | Example(s)
      *     ----------+------------------------------------------------------------------------------------------
@@ -322,7 +320,7 @@ public class MetaUtil {
      *     'f'       | Indicator if method is unresolved, static or virtual | "unresolved" "static" "virtual"
      *     '%'       | A '%' character                                      | "%"
      * </pre>
-     * 
+     *
      * @param format a format specification
      * @param method the method to be formatted
      * @return the result of formatting this method according to {@code format}
@@ -378,7 +376,7 @@ public class MetaUtil {
                         break;
                     }
                     case 'f': {
-                        sb.append(!(method instanceof ResolvedJavaMethod) ? "unresolved" : isStatic(((ResolvedJavaMethod) method).getModifiers()) ? "static" : "virtual");
+                        sb.append(!(method instanceof ResolvedJavaMethod) ? "unresolved" : ((ResolvedJavaMethod) method).isStatic() ? "static" : "virtual");
                         break;
                     }
                     case '%': {
@@ -402,7 +400,7 @@ public class MetaUtil {
      * specifiers that denote an attribute of the field that is to be copied to the result. A
      * specifier is a single character preceded by a '%' character. The accepted specifiers and the
      * field attributes they denote are described below:
-     * 
+     *
      * <pre>
      *     Specifier | Description                                          | Example(s)
      *     ----------+------------------------------------------------------------------------------------------
@@ -414,7 +412,7 @@ public class MetaUtil {
      *     'f'       | Indicator if field is unresolved, static or instance | "unresolved" "static" "instance"
      *     '%'       | A '%' character                                      | "%"
      * </pre>
-     * 
+     *
      * @param format a format specification
      * @param field the field to be formatted
      * @return the result of formatting this field according to {@code format}
@@ -452,7 +450,7 @@ public class MetaUtil {
                         break;
                     }
                     case 'f': {
-                        sb.append(!(field instanceof ResolvedJavaField) ? "unresolved" : isStatic(((ResolvedJavaField) field).getModifiers()) ? "static" : "instance");
+                        sb.append(!(field instanceof ResolvedJavaField) ? "unresolved" : ((ResolvedJavaField) field).isStatic() ? "static" : "instance");
                         break;
                     }
                     case '%': {
@@ -472,7 +470,7 @@ public class MetaUtil {
 
     /**
      * Gets the annotations of a particular type for the formal parameters of a given method.
-     * 
+     *
      * @param annotationClass the Class object corresponding to the annotation type
      * @param method the method for which a parameter annotations are being requested
      * @return the annotation of type {@code annotationClass} (if any) for each formal parameter
@@ -494,7 +492,7 @@ public class MetaUtil {
 
     /**
      * Gets the annotation of a particular type for a formal parameter of a given method.
-     * 
+     *
      * @param annotationClass the Class object corresponding to the annotation type
      * @param parameterIndex the index of a formal parameter of {@code method}
      * @param method the method for which a parameter annotation is being requested
@@ -530,18 +528,18 @@ public class MetaUtil {
      * line number is {@linkplain ResolvedJavaMethod#asStackTraceElement(int) available} for the
      * given method, then the string returned is the {@link StackTraceElement#toString()} value of
      * the stack trace element, suffixed by the bci location. For example:
-     * 
+     *
      * <pre>
      *     java.lang.String.valueOf(String.java:2930) [bci: 12]
      * </pre>
-     * 
+     *
      * Otherwise, the string returned is the value of applying {@link #format(String, JavaMethod)}
      * with the format string {@code "%H.%n(%p)"}, suffixed by the bci location. For example:
-     * 
+     *
      * <pre>
      *     java.lang.String.valueOf(int) [bci: 12]
      * </pre>
-     * 
+     *
      * @param sb
      * @param method
      * @param bci
@@ -561,7 +559,7 @@ public class MetaUtil {
     }
 
     public static JavaType[] signatureToTypes(ResolvedJavaMethod method) {
-        JavaType receiver = isStatic(method.getModifiers()) ? null : method.getDeclaringClass();
+        JavaType receiver = method.isStatic() ? null : method.getDeclaringClass();
         return signatureToTypes(method.getSignature(), receiver);
     }
 
@@ -586,13 +584,13 @@ public class MetaUtil {
      * Gets the <a
      * href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.3.3">method
      * descriptor</a> corresponding to this signature. For example:
-     * 
+     *
      * <pre>
      * (ILjava/lang/String;D)V
      * </pre>
-     * 
+     *
      * .
-     * 
+     *
      * @param sig the {@link Signature} to be converted.
      * @return the signature as a string
      */
@@ -607,7 +605,7 @@ public class MetaUtil {
 
     /**
      * Formats some profiling information associated as a string.
-     * 
+     *
      * @param info the profiling info to format
      * @param method an optional method that augments the profile string returned
      * @param sep the separator to use for each separate profile record
@@ -669,13 +667,13 @@ public class MetaUtil {
         return s.substring(0, s.length() - sep.length());
     }
 
-    private static void appendProfile(StringBuilder buf, AbstractJavaProfile profile, int bci, String type, String sep) {
+    private static void appendProfile(StringBuilder buf, AbstractJavaProfile<?, ?> profile, int bci, String type, String sep) {
         if (profile != null) {
-            AbstractProfiledItem[] pitems = profile.getItems();
+            AbstractProfiledItem<?>[] pitems = profile.getItems();
             if (pitems != null) {
                 buf.append(String.format("%s@%d:", type, bci));
                 for (int j = 0; j < pitems.length; j++) {
-                    AbstractProfiledItem pitem = pitems[j];
+                    AbstractProfiledItem<?> pitem = pitems[j];
                     buf.append(String.format(" %.6f (%s)%s", pitem.getProbability(), pitem.getItem(), sep));
                 }
                 if (profile.getNotRecordedProbability() != 0) {
@@ -689,7 +687,7 @@ public class MetaUtil {
 
     /**
      * Converts a Java source-language class name into the internal form.
-     * 
+     *
      * @param className the class name
      * @return the internal name form of the class name
      */

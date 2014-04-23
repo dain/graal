@@ -23,8 +23,10 @@
 package com.oracle.graal.nodes.calc;
 
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.graph.spi.*;
+import com.oracle.graal.lir.gen.*;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.extended.*;
 import com.oracle.graal.nodes.spi.*;
@@ -67,6 +69,13 @@ public final class AndNode extends BitLogicNode implements Canonicalizable, Narr
             if ((rawY & mask) == 0) {
                 return ConstantNode.forIntegerStamp(stamp(), 0, graph());
             }
+            if (x() instanceof SignExtendNode) {
+                SignExtendNode ext = (SignExtendNode) x();
+                if (rawY == ((1L << ext.getInputBits()) - 1)) {
+                    ValueNode result = graph().unique(new ZeroExtendNode(ext.getInput(), ext.getResultBits()));
+                    return result;
+                }
+            }
             if (x().stamp() instanceof IntegerStamp) {
                 IntegerStamp xStamp = (IntegerStamp) x().stamp();
                 if (((xStamp.upMask() | xStamp.downMask()) & ~rawY) == 0) {
@@ -81,8 +90,8 @@ public final class AndNode extends BitLogicNode implements Canonicalizable, Narr
     }
 
     @Override
-    public void generate(NodeLIRBuilderTool gen) {
-        gen.setResult(this, gen.getLIRGeneratorTool().emitAnd(gen.operand(x()), gen.operand(y())));
+    public void generate(NodeMappableLIRBuilder builder, ArithmeticLIRGenerator gen) {
+        builder.setResult(this, gen.emitAnd(builder.operand(x()), builder.operand(y())));
     }
 
     @Override

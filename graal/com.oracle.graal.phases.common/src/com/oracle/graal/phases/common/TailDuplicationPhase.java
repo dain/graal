@@ -22,10 +22,12 @@
  */
 package com.oracle.graal.phases.common;
 
-import static com.oracle.graal.phases.GraalOptions.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
 
 import java.util.*;
 
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.debug.*;
 import com.oracle.graal.graph.Graph.DuplicationReplacement;
 import com.oracle.graal.graph.Graph.Mark;
@@ -37,7 +39,6 @@ import com.oracle.graal.nodes.VirtualState.NodeClosure;
 import com.oracle.graal.nodes.extended.*;
 import com.oracle.graal.nodes.java.*;
 import com.oracle.graal.nodes.spi.*;
-import com.oracle.graal.nodes.type.*;
 import com.oracle.graal.nodes.util.*;
 import com.oracle.graal.nodes.virtual.*;
 import com.oracle.graal.phases.*;
@@ -293,7 +294,7 @@ public class TailDuplicationPhase extends BasePhase<PhaseContext> {
                 // EndNode
                 FixedWithNextNode anchorDuplicate = (FixedWithNextNode) duplicates.get(anchor);
                 // move dependencies on the ValueAnchorNode to the previous BeginNode
-                AbstractBeginNode prevBegin = AbstractBeginNode.prevBegin(forwardEnd);
+                BeginNode prevBegin = BeginNode.prevBegin(forwardEnd);
                 anchorDuplicate.replaceAtUsages(InputType.Guard, prevBegin);
                 anchorDuplicate.replaceAtUsages(InputType.Anchor, prevBegin);
                 assert anchorDuplicate.usages().isEmpty();
@@ -493,7 +494,7 @@ public class TailDuplicationPhase extends BasePhase<PhaseContext> {
                         Position pos = iter.nextPosition();
                         if (pos.get(usage) == duplicated) {
                             switch (pos.getInputType(usage)) {
-                                case Association:
+                                case Extension:
                                 case Condition:
                                 case State:
                                     // clone the offending node to the outside
@@ -524,6 +525,7 @@ public class TailDuplicationPhase extends BasePhase<PhaseContext> {
                                     }
                                     pos.set(usage, newPhi);
                                     break;
+                                case Association:
                                 default:
                                     throw GraalInternalError.shouldNotReachHere();
                             }
@@ -541,7 +543,7 @@ public class TailDuplicationPhase extends BasePhase<PhaseContext> {
                 Node input = pos.get(duplicated);
                 if (input != null && !duplicatedNodes.contains(input)) {
                     switch (pos.getInputType(duplicated)) {
-                        case Association:
+                        case Extension:
                         case Condition:
                         case State:
                             if (input != merge) {
@@ -549,6 +551,7 @@ public class TailDuplicationPhase extends BasePhase<PhaseContext> {
                                 worklist.add(input);
                             }
                             break;
+                        case Association:
                         case Guard:
                         case Anchor:
                         case Value:
