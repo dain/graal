@@ -31,11 +31,10 @@ import com.oracle.graal.api.meta.*;
 import com.oracle.graal.asm.*;
 import com.oracle.graal.asm.amd64.*;
 import com.oracle.graal.asm.amd64.AMD64Assembler.ConditionFlag;
-import com.oracle.graal.graph.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.hotspot.HotSpotVMConfig.CompressEncoding;
 import com.oracle.graal.hotspot.data.*;
 import com.oracle.graal.hotspot.meta.*;
-import com.oracle.graal.hotspot.nodes.type.*;
 import com.oracle.graal.lir.*;
 import com.oracle.graal.lir.amd64.*;
 import com.oracle.graal.lir.amd64.AMD64Move.LoadOp;
@@ -79,25 +78,36 @@ public class AMD64HotSpotMove {
     public static class CompressPointer extends AMD64LIRInstruction {
 
         private final CompressEncoding encoding;
+        private final boolean nonNull;
 
         @Def({REG, HINT}) protected AllocatableValue result;
         @Use({REG}) protected AllocatableValue input;
-        @Temp({REG, ILLEGAL}) protected AllocatableValue baseRegister;
+        @Alive({REG, ILLEGAL}) protected AllocatableValue baseRegister;
 
-        public CompressPointer(AllocatableValue result, AllocatableValue input, AllocatableValue baseRegister, CompressEncoding encoding) {
+        public CompressPointer(AllocatableValue result, AllocatableValue input, AllocatableValue baseRegister, CompressEncoding encoding, boolean nonNull) {
             this.result = result;
             this.input = input;
             this.baseRegister = baseRegister;
             this.encoding = encoding;
+            this.nonNull = nonNull;
         }
 
         @Override
         public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
-            if (result.getPlatformKind() == NarrowOopStamp.NarrowOop) {
-                AMD64Move.move(Kind.Long, crb, masm, result, input);
-                encodePointer(masm, asRegister(result), asRegister(baseRegister), encoding);
-            } else {
-                throw GraalInternalError.unimplemented();
+            AMD64Move.move(Kind.Long, crb, masm, result, input);
+
+            Register resReg = asRegister(result);
+            if (encoding.base != 0) {
+                Register baseReg = asRegister(baseRegister);
+                if (!nonNull) {
+                    masm.testq(resReg, resReg);
+                    masm.cmovq(ConditionFlag.Equal, resReg, baseReg);
+                }
+                masm.subq(resReg, baseReg);
+            }
+
+            if (encoding.shift != 0) {
+                masm.shrq(resReg, encoding.shift);
             }
         }
     }
@@ -105,25 +115,43 @@ public class AMD64HotSpotMove {
     public static class UncompressPointer extends AMD64LIRInstruction {
 
         private final CompressEncoding encoding;
+        private final boolean nonNull;
 
         @Def({REG, HINT}) protected AllocatableValue result;
         @Use({REG}) protected AllocatableValue input;
-        @Temp({REG, ILLEGAL}) protected AllocatableValue baseRegister;
+        @Alive({REG, ILLEGAL}) protected AllocatableValue baseRegister;
 
-        public UncompressPointer(AllocatableValue result, AllocatableValue input, AllocatableValue baseRegister, CompressEncoding encoding) {
+        public UncompressPointer(AllocatableValue result, AllocatableValue input, AllocatableValue baseRegister, CompressEncoding encoding, boolean nonNull) {
             this.result = result;
             this.input = input;
             this.baseRegister = baseRegister;
             this.encoding = encoding;
+            this.nonNull = nonNull;
         }
 
         @Override
         public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
-            if (result.getKind() == Kind.Object) {
-                AMD64Move.move(Kind.Int, crb, masm, result, input);
-                decodePointer(masm, asRegister(result), asRegister(baseRegister), encoding);
-            } else {
-                throw GraalInternalError.unimplemented();
+            AMD64Move.move(Kind.Int, crb, masm, result, input);
+
+            Register resReg = asRegister(result);
+            if (encoding.shift != 0) {
+                masm.shlq(resReg, encoding.shift);
+            }
+
+            if (encoding.base != 0) {
+                if (nonNull) {
+                    masm.addq(resReg, asRegister(baseRegister));
+                } else {
+                    if (encoding.shift == 0) {
+                        // if encoding.shift != 0, the flags are already set by the shlq
+                        masm.testq(resReg, resReg);
+                    }
+
+                    Label done = new Label();
+                    masm.jccb(ConditionFlag.Equal, done);
+                    masm.addq(resReg, asRegister(baseRegister));
+                    masm.bind(done);
+                }
             }
         }
     }

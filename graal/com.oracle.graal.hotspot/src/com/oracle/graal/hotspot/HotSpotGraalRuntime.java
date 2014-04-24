@@ -22,9 +22,9 @@
  */
 package com.oracle.graal.hotspot;
 
-import static com.oracle.graal.graph.UnsafeAccess.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
+import static com.oracle.graal.compiler.common.UnsafeAccess.*;
 import static com.oracle.graal.hotspot.HotSpotGraalRuntime.Options.*;
-import static com.oracle.graal.phases.GraalOptions.*;
 
 import java.lang.reflect.*;
 import java.util.*;
@@ -33,11 +33,12 @@ import sun.misc.*;
 import sun.reflect.*;
 
 import com.oracle.graal.api.code.*;
+import com.oracle.graal.api.code.stack.*;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.api.replacements.*;
 import com.oracle.graal.api.runtime.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.compiler.target.*;
-import com.oracle.graal.graph.*;
 import com.oracle.graal.hotspot.bridge.*;
 import com.oracle.graal.hotspot.logging.*;
 import com.oracle.graal.hotspot.meta.*;
@@ -49,7 +50,7 @@ import com.oracle.graal.runtime.*;
 /**
  * Singleton class holding the instance of the {@link GraalRuntime}.
  */
-public final class HotSpotGraalRuntime implements GraalRuntime, RuntimeProvider {
+public final class HotSpotGraalRuntime implements GraalRuntime, RuntimeProvider, StackIntrospection {
 
     private static final HotSpotGraalRuntime instance = new HotSpotGraalRuntime();
     static {
@@ -63,7 +64,7 @@ public final class HotSpotGraalRuntime implements GraalRuntime, RuntimeProvider 
     public static HotSpotGraalRuntime runtime() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
-            Class cc = Reflection.getCallerClass();
+            Class<?> cc = Reflection.getCallerClass();
             if (cc != null && cc.getClassLoader() != null) {
                 sm.checkPermission(Graal.ACCESS_PERMISSION);
             }
@@ -363,6 +364,8 @@ public final class HotSpotGraalRuntime implements GraalRuntime, RuntimeProvider 
     public <T> T getCapability(Class<T> clazz) {
         if (clazz == RuntimeProvider.class) {
             return (T) this;
+        } else if (clazz == StackIntrospection.class) {
+            return (T) this;
         } else if (clazz == SnippetReflectionProvider.class) {
             return (T) getHostProviders().getSnippetReflection();
         }
@@ -439,6 +442,52 @@ public final class HotSpotGraalRuntime implements GraalRuntime, RuntimeProvider 
                 return Unsafe.ARRAY_OBJECT_INDEX_SCALE;
             default:
                 throw GraalInternalError.shouldNotReachHere();
+        }
+    }
+
+    public Iterable<InspectedFrame> getStackTrace(ResolvedJavaMethod[] initialMethods, ResolvedJavaMethod[] matchingMethods, int initialSkip) {
+        final long[] initialMetaMethods = toMeta(initialMethods);
+        final long[] matchingMetaMethods = toMeta(matchingMethods);
+        class StackFrameIterator implements Iterator<InspectedFrame> {
+
+            private HotSpotStackFrameReference current = compilerToVm.getNextStackFrame(null, initialMetaMethods, initialSkip);
+            // we don't want to read ahead if hasNext isn't called
+            private boolean advanced = true;
+
+            public boolean hasNext() {
+                update();
+                return current != null;
+            }
+
+            public InspectedFrame next() {
+                update();
+                advanced = false;
+                return current;
+            }
+
+            private void update() {
+                if (!advanced) {
+                    current = compilerToVm.getNextStackFrame(current, matchingMetaMethods, 0);
+                    advanced = true;
+                }
+            }
+        }
+        return new Iterable<InspectedFrame>() {
+            public Iterator<InspectedFrame> iterator() {
+                return new StackFrameIterator();
+            }
+        };
+    }
+
+    private static long[] toMeta(ResolvedJavaMethod[] methods) {
+        if (methods == null) {
+            return null;
+        } else {
+            long[] result = new long[methods.length];
+            for (int i = 0; i < result.length; i++) {
+                result[i] = ((HotSpotResolvedJavaMethod) methods[i]).getMetaspaceMethod();
+            }
+            return result;
         }
     }
 }

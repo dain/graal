@@ -24,11 +24,10 @@
 package com.oracle.graal.java;
 
 import static com.oracle.graal.api.meta.MetaUtil.*;
-import static java.lang.reflect.Modifier.*;
-
 import java.util.*;
 
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.java.*;
@@ -84,7 +83,7 @@ public class VerifyOptionsPhase extends Phase {
         this.optionValueType = metaAccess.lookupJavaType(OptionValue.class);
         this.option = option;
         this.boxingTypes = new HashSet<>();
-        for (Class c : new Class[]{Boolean.class, Byte.class, Short.class, Character.class, Integer.class, Float.class, Long.class, Double.class}) {
+        for (Class<?> c : new Class[]{Boolean.class, Byte.class, Short.class, Character.class, Integer.class, Float.class, Long.class, Double.class}) {
             this.boxingTypes.add(metaAccess.lookupJavaType(c));
         }
     }
@@ -114,9 +113,9 @@ public class VerifyOptionsPhase extends Phase {
             if (node instanceof StoreFieldNode) {
                 ResolvedJavaField field = ((StoreFieldNode) node).field();
                 verify(field.getDeclaringClass().equals(declaringClass), node, "store to field " + format("%H.%n", field));
-                verify(isStatic(field.getModifiers()), node, "store to field " + format("%H.%n", field));
+                verify(field.isStatic(), node, "store to field " + format("%H.%n", field));
                 if (optionValueType.isAssignableFrom((ResolvedJavaType) field.getType())) {
-                    verify(isFinal(field.getModifiers()), node, "option field " + format("%H.%n", field) + " not final");
+                    verify(field.isFinal(), node, "option field " + format("%H.%n", field) + " not final");
                 } else {
                     verify((field.isSynthetic()), node, "store to non-synthetic field " + format("%H.%n", field));
                 }

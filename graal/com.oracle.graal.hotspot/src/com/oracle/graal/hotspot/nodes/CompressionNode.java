@@ -23,6 +23,8 @@
 package com.oracle.graal.hotspot.nodes;
 
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.graph.spi.*;
 import com.oracle.graal.hotspot.*;
@@ -73,7 +75,7 @@ public final class CompressionNode extends FloatingNode implements LIRLowerable,
                 } else if (input instanceof IntegerStamp) {
                     // compressed metaspace pointer
                     assert PrimitiveStamp.getBits(input) == 64;
-                    return StampFactory.forInteger(32, false);
+                    return StampFactory.forInteger(32);
                 }
                 break;
             case Uncompress:
@@ -84,7 +86,7 @@ public final class CompressionNode extends FloatingNode implements LIRLowerable,
                 } else if (input instanceof IntegerStamp) {
                     // metaspace pointer
                     assert PrimitiveStamp.getBits(input) == 32;
-                    return StampFactory.forInteger(64, false);
+                    return StampFactory.forInteger(64);
                 }
                 break;
         }
@@ -105,13 +107,21 @@ public final class CompressionNode extends FloatingNode implements LIRLowerable,
     @Override
     public void generate(NodeLIRBuilderTool gen) {
         HotSpotLIRGenerator hsGen = (HotSpotLIRGenerator) gen.getLIRGeneratorTool();
+        boolean nonNull;
+        if (input.stamp() instanceof ObjectStamp) {
+            nonNull = StampTool.isObjectNonNull(input.stamp());
+        } else {
+            // metaspace pointers are never null
+            nonNull = true;
+        }
+
         Value result;
         switch (op) {
             case Compress:
-                result = hsGen.emitCompress(gen.operand(input), encoding);
+                result = hsGen.emitCompress(gen.operand(input), encoding, nonNull);
                 break;
             case Uncompress:
-                result = hsGen.emitUncompress(gen.operand(input), encoding);
+                result = hsGen.emitUncompress(gen.operand(input), encoding, nonNull);
                 break;
             default:
                 throw GraalInternalError.shouldNotReachHere();

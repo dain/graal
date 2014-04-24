@@ -47,9 +47,9 @@ void graal_compute_offsets();
  *
  */
 
-#define COMPILER_CLASSES_DO(start_class, end_class, char_field, int_field, boolean_field, long_field, float_field, oop_field, static_oop_field)                \
+#define COMPILER_CLASSES_DO(start_class, end_class, char_field, int_field, boolean_field, long_field, float_field, oop_field, static_oop_field, static_int_field) \
   start_class(HotSpotResolvedObjectType)                                                                                                                       \
-    oop_field(HotSpotResolvedObjectType, javaClass, "Ljava/lang/Class;")                                                                                      \
+    oop_field(HotSpotResolvedObjectType, javaClass, "Ljava/lang/Class;")                                                                                       \
   end_class                                                                                                                                                    \
   start_class(HotSpotResolvedJavaMethod)                                                                                                                       \
     oop_field(HotSpotResolvedJavaMethod, name, "Ljava/lang/String;")                                                                                           \
@@ -59,8 +59,11 @@ void graal_compute_offsets();
   start_class(HotSpotJavaType)                                                                                                                                 \
     oop_field(HotSpotJavaType, name, "Ljava/lang/String;")                                                                                                     \
   end_class                                                                                                                                                    \
+  start_class(InstalledCode)                                                                                                                                   \
+    long_field(InstalledCode, address)                                                                                                                         \
+    long_field(InstalledCode, version)                                                                                                                         \
+  end_class                                                                                                                                                    \
   start_class(HotSpotInstalledCode)                                                                                                                            \
-    long_field(HotSpotInstalledCode, codeBlob)                                                                                                                 \
     int_field(HotSpotInstalledCode, size)                                                                                                                      \
     long_field(HotSpotInstalledCode, codeStart)                                                                                                                \
     int_field(HotSpotInstalledCode, codeSize)                                                                                                                  \
@@ -113,7 +116,7 @@ void graal_compute_offsets();
     long_field(ExternalCompilationResult, entryPoint)                                                                                                          \
   end_class                                                                                                                                                    \
   start_class(CompilationResult)                                                                                                                               \
-    int_field(CompilationResult, frameSize)                                                                                                                    \
+    int_field(CompilationResult, totalFrameSize)                                                                                                               \
     int_field(CompilationResult, customStackAreaOffset)                                                                                                        \
     oop_field(CompilationResult, targetCode, "[B")                                                                                                             \
     oop_field(CompilationResult, assumptions, "Lcom/oracle/graal/api/code/Assumptions;")                                                                       \
@@ -193,6 +196,7 @@ void graal_compute_offsets();
     int_field(BytecodeFrame, numLocks)                                                                                                                         \
     boolean_field(BytecodeFrame, rethrowException)                                                                                                             \
     boolean_field(BytecodeFrame, duringCall)                                                                                                                   \
+    static_int_field(BytecodeFrame, BEFORE_BCI)                                                                                                                \
   end_class                                                                                                                                                    \
   start_class(BytecodePosition)                                                                                                                                \
     oop_field(BytecodePosition, caller, "Lcom/oracle/graal/api/code/BytecodePosition;")                                                                        \
@@ -202,17 +206,17 @@ void graal_compute_offsets();
   start_class(Constant)                                                                                                                                        \
     oop_field(Constant, kind, "Lcom/oracle/graal/api/meta/Kind;")                                                                                              \
   end_class                                                                                                                                                    \
-  start_class(PrimitiveConstant)                                                                                                                                        \
-    long_field(PrimitiveConstant, primitive)                                                                                                                            \
+  start_class(PrimitiveConstant)                                                                                                                               \
+    long_field(PrimitiveConstant, primitive)                                                                                                                   \
   end_class                                                                                                                                                    \
-  start_class(NullConstant)                                                                                                                                        \
+  start_class(NullConstant)                                                                                                                                    \
   end_class                                                                                                                                                    \
-  start_class(HotSpotObjectConstant)                                                                                                                                        \
-    oop_field(HotSpotObjectConstant, object, "Ljava/lang/Object;")                                                                                                          \
+  start_class(HotSpotObjectConstant)                                                                                                                           \
+    oop_field(HotSpotObjectConstant, object, "Ljava/lang/Object;")                                                                                             \
   end_class                                                                                                                                                    \
-  start_class(HotSpotMetaspaceConstant)                                                                                                                                        \
-    long_field(HotSpotMetaspaceConstant, primitive)                                                                                                                            \
-    oop_field(HotSpotMetaspaceConstant, metaspaceObject, "Ljava/lang/Object;")                                                                                                          \
+  start_class(HotSpotMetaspaceConstant)                                                                                                                        \
+    long_field(HotSpotMetaspaceConstant, primitive)                                                                                                            \
+    oop_field(HotSpotMetaspaceConstant, metaspaceObject, "Ljava/lang/Object;")                                                                                 \
   end_class                                                                                                                                                    \
   start_class(Kind)                                                                                                                                            \
     char_field(Kind, typeChar)                                                                                                                                 \
@@ -249,7 +253,16 @@ void graal_compute_offsets();
   end_class                                                                                                                                                    \
   start_class(SpeculationLog)                                                                                                                                  \
     oop_field(SpeculationLog, lastFailed, "Ljava/lang/Object;")                                                                                                \
-  end_class
+  end_class                                                                                                                                                    \
+  start_class(HotSpotStackFrameReference)                                                                                                                      \
+    oop_field(HotSpotStackFrameReference, compilerToVM, "Lcom/oracle/graal/hotspot/bridge/CompilerToVM;")                                                      \
+    long_field(HotSpotStackFrameReference, stackPointer)                                                                                                       \
+    int_field(HotSpotStackFrameReference, frameNumber)                                                                                                         \
+    int_field(HotSpotStackFrameReference, bci)                                                                                                                 \
+    long_field(HotSpotStackFrameReference, metaspaceMethod)                                                                                                    \
+    oop_field(HotSpotStackFrameReference, locals, "[Ljava/lang/Object;")                                                                                       \
+    oop_field(HotSpotStackFrameReference, localIsVirtual, "[Z")                                                                                                \
+  end_class                                                                                                                                                    \
   /* end*/
 
 #define START_CLASS(name)                                                                                                                                      \
@@ -301,7 +314,19 @@ class name : AllStatic {                                                        
         oop_store((oop*)addr, x);                                                                                                                              \
       }                                                                                                                                                        \
     }
-COMPILER_CLASSES_DO(START_CLASS, END_CLASS, CHAR_FIELD, INT_FIELD, BOOLEAN_FIELD, LONG_FIELD, FLOAT_FIELD, OOP_FIELD, STATIC_OOP_FIELD)
+#define STATIC_INT_FIELD(klassName, name)                                                                                                                      \
+    static int _##name##_offset;                                                                                                                               \
+    static int name() {                                                                                                                                        \
+      InstanceKlass* ik = InstanceKlass::cast(klassName::klass());                                                                                             \
+      address addr = ik->static_field_addr(_##name##_offset - InstanceMirrorKlass::offset_of_static_fields());                                                 \
+      return *((jint *)addr);                                                                                                                                  \
+    }                                                                                                                                                          \
+    static void set_##name(int x) {                                                                                                                            \
+      InstanceKlass* ik = InstanceKlass::cast(klassName::klass());                                                                                             \
+      address addr = ik->static_field_addr(_##name##_offset - InstanceMirrorKlass::offset_of_static_fields());                                                 \
+      *((jint *)addr) = x;                                                                                                                                     \
+    }
+COMPILER_CLASSES_DO(START_CLASS, END_CLASS, CHAR_FIELD, INT_FIELD, BOOLEAN_FIELD, LONG_FIELD, FLOAT_FIELD, OOP_FIELD, STATIC_OOP_FIELD, STATIC_INT_FIELD)
 #undef START_CLASS
 #undef END_CLASS
 #undef FIELD
@@ -312,6 +337,7 @@ COMPILER_CLASSES_DO(START_CLASS, END_CLASS, CHAR_FIELD, INT_FIELD, BOOLEAN_FIELD
 #undef FLOAT_FIELD
 #undef OOP_FIELD
 #undef STATIC_OOP_FIELD
+#undef STATIC_INT_FIELD
 
 void compute_offset(int &dest_offset, Klass* klass, const char* name, const char* signature, bool static_field);
 

@@ -28,16 +28,17 @@ import static com.oracle.graal.lir.LIRInstruction.OperandFlag.*;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.asm.amd64.*;
 import com.oracle.graal.compiler.amd64.*;
-import com.oracle.graal.graph.*;
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.calc.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.hotspot.data.*;
 import com.oracle.graal.hotspot.meta.*;
+import com.oracle.graal.hotspot.nodes.type.*;
 import com.oracle.graal.lir.*;
 import com.oracle.graal.lir.amd64.*;
 import com.oracle.graal.lir.amd64.AMD64ControlFlow.BranchOp;
 import com.oracle.graal.lir.asm.*;
 import com.oracle.graal.nodes.*;
-import com.oracle.graal.nodes.calc.*;
 import com.oracle.graal.nodes.extended.*;
 
 /**
@@ -83,11 +84,21 @@ public class AMD64HotSpotMemoryPeephole extends AMD64MemoryPeephole {
     }
 
     @Override
+    protected Kind getMemoryKind(Access access) {
+        PlatformKind kind = gen.getLIRGeneratorTool().getPlatformKind(access.asNode().stamp());
+        if (kind == NarrowOopStamp.NarrowOop) {
+            return Kind.Int;
+        } else {
+            return (Kind) kind;
+        }
+    }
+
+    @Override
     protected boolean emitCompareBranchMemory(ValueNode left, ValueNode right, Access access, Condition cond, boolean unorderedIsTrue, LabelRef trueLabel, LabelRef falseLabel,
                     double trueLabelProbability) {
         if (HotSpotGraalRuntime.runtime().getConfig().useCompressedOops) {
             ValueNode other = selectOtherInput(left, right, access);
-            Kind kind = access.accessLocation().getValueKind();
+            Kind kind = getMemoryKind(access);
 
             if (other.isConstant() && kind == Kind.Object && access.isCompressible()) {
                 ensureEvaluated(other);

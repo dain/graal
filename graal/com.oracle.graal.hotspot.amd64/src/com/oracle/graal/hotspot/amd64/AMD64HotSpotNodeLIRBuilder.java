@@ -26,8 +26,6 @@ import static com.oracle.graal.amd64.AMD64.*;
 import static com.oracle.graal.api.code.ValueUtil.*;
 import static com.oracle.graal.hotspot.HotSpotBackend.*;
 
-import java.lang.reflect.*;
-
 import com.oracle.graal.amd64.*;
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
@@ -39,17 +37,14 @@ import com.oracle.graal.debug.*;
 import com.oracle.graal.graph.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.hotspot.amd64.AMD64HotSpotLIRGenerator.SaveRbp;
-import com.oracle.graal.hotspot.amd64.AMD64HotSpotMove.CompareAndSwapCompressedOp;
 import com.oracle.graal.hotspot.meta.*;
 import com.oracle.graal.hotspot.nodes.*;
 import com.oracle.graal.lir.*;
 import com.oracle.graal.lir.StandardOp.NoOp;
 import com.oracle.graal.lir.amd64.*;
-import com.oracle.graal.lir.amd64.AMD64ControlFlow.CondMoveOp;
 import com.oracle.graal.lir.amd64.AMD64Move.CompareAndSwapOp;
+import com.oracle.graal.lir.gen.*;
 import com.oracle.graal.nodes.*;
-import com.oracle.graal.nodes.calc.*;
-import com.oracle.graal.nodes.java.*;
 import com.oracle.graal.nodes.java.MethodCallTargetNode.InvokeKind;
 
 /**
@@ -57,9 +52,12 @@ import com.oracle.graal.nodes.java.MethodCallTargetNode.InvokeKind;
  */
 public class AMD64HotSpotNodeLIRBuilder extends AMD64NodeLIRBuilder implements HotSpotNodeLIRBuilder {
 
-    public AMD64HotSpotNodeLIRBuilder(StructuredGraph graph, LIRGenerator gen) {
+    public AMD64HotSpotNodeLIRBuilder(StructuredGraph graph, LIRGeneratorTool gen) {
         super(graph, gen);
         memoryPeephole = new AMD64HotSpotMemoryPeephole(this);
+        assert gen instanceof AMD64HotSpotLIRGenerator;
+        assert getDebugInfoBuilder() instanceof HotSpotDebugInfoBuilder;
+        ((AMD64HotSpotLIRGenerator) gen).setLockStack(((HotSpotDebugInfoBuilder) getDebugInfoBuilder()).lockStack());
     }
 
     private AMD64HotSpotLIRGenerator getGen() {
@@ -111,7 +109,7 @@ public class AMD64HotSpotNodeLIRBuilder extends AMD64NodeLIRBuilder implements H
 
     @Override
     public void visitSafepointNode(SafepointNode i) {
-        LIRFrameState info = gen.state(i);
+        LIRFrameState info = state(i);
         append(new AMD64HotSpotSafepointOp(info, getGen().config, this));
     }
 
@@ -123,9 +121,8 @@ public class AMD64HotSpotNodeLIRBuilder extends AMD64NodeLIRBuilder implements H
         } else {
             assert invokeKind == InvokeKind.Static || invokeKind == InvokeKind.Special;
             HotSpotResolvedJavaMethod resolvedMethod = (HotSpotResolvedJavaMethod) callTarget.target();
-            assert !Modifier.isAbstract(resolvedMethod.getModifiers()) : "Cannot make direct call to abstract method.";
-            Constant metaspaceMethod = resolvedMethod.getMetaspaceMethodConstant();
-            append(new AMD64HotspotDirectStaticCallOp(callTarget.target(), result, parameters, temps, callState, invokeKind, metaspaceMethod));
+            assert !resolvedMethod.isAbstract() : "Cannot make direct call to abstract method.";
+            append(new AMD64HotspotDirectStaticCallOp(callTarget.target(), result, parameters, temps, callState, invokeKind));
         }
     }
 
@@ -165,7 +162,7 @@ public class AMD64HotSpotNodeLIRBuilder extends AMD64NodeLIRBuilder implements H
 
     @Override
     public void visitInfopointNode(InfopointNode i) {
-        if (i.getState() != null && i.getState().bci == FrameState.AFTER_BCI) {
+        if (i.getState() != null && i.getState().bci == BytecodeFrame.AFTER_BCI) {
             Debug.log("Ignoring InfopointNode for AFTER_BCI");
         } else {
             super.visitInfopointNode(i);
@@ -198,32 +195,10 @@ public class AMD64HotSpotNodeLIRBuilder extends AMD64NodeLIRBuilder implements H
 
         RegisterValue raxLocal = AMD64.rax.asValue(kind);
         gen.emitMove(raxLocal, expected);
-        append(new CompareAndSwapOp(raxLocal, address, raxLocal, newVal));
+        append(new CompareAndSwapOp(kind, raxLocal, address, raxLocal, newVal));
 
         Variable result = newVariable(x.getKind());
         gen.emitMove(result, raxLocal);
         setResult(x, result);
     }
-
-    @Override
-    public void visitCompareAndSwap(LoweredCompareAndSwapNode node, Value address) {
-        Kind kind = node.getNewValue().getKind();
-        assert kind == node.getExpectedValue().getKind();
-        Value expected = gen.loadNonConst(operand(node.getExpectedValue()));
-        Variable newValue = gen.load(operand(node.getNewValue()));
-        AMD64AddressValue addressValue = getGen().asAddressValue(address);
-        RegisterValue raxRes = AMD64.rax.asValue(kind);
-        gen.emitMove(raxRes, expected);
-        if (getGen().config.useCompressedOops && node.isCompressible()) {
-            Variable scratch = newVariable(Kind.Long);
-            Register heapBaseReg = getGen().getProviders().getRegisters().getHeapBaseRegister();
-            append(new CompareAndSwapCompressedOp(raxRes, addressValue, raxRes, newValue, scratch, getGen().config.getOopEncoding(), heapBaseReg));
-        } else {
-            append(new CompareAndSwapOp(raxRes, addressValue, raxRes, newValue));
-        }
-        Variable result = newVariable(node.getKind());
-        append(new CondMoveOp(result, Condition.EQ, gen.load(Constant.TRUE), Constant.FALSE));
-        setResult(node, result);
-    }
-
 }

@@ -22,13 +22,13 @@
  */
 package com.oracle.graal.hotspot.meta;
 
-import static com.oracle.graal.graph.UnsafeAccess.*;
+import static com.oracle.graal.compiler.common.UnsafeAccess.*;
 
 import java.lang.reflect.*;
 
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
-import com.oracle.graal.graph.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.hotspot.replacements.*;
 
@@ -93,7 +93,7 @@ public class HotSpotMetaAccessProvider implements MetaAccessProvider {
         }
     }
 
-    public ResolvedJavaMethod lookupJavaConstructor(Constructor reflectionConstructor) {
+    public ResolvedJavaMethod lookupJavaConstructor(Constructor<?> reflectionConstructor) {
         try {
             Class<?> holder = reflectionConstructor.getDeclaringClass();
             final int slot = reflectionConstructorSlot.getInt(reflectionConstructor);

@@ -25,14 +25,13 @@ package com.oracle.graal.hotspot;
 import static com.oracle.graal.api.code.CallingConvention.Type.*;
 import static com.oracle.graal.api.code.CodeUtil.*;
 import static com.oracle.graal.compiler.GraalCompiler.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
 import static com.oracle.graal.hotspot.bridge.VMToCompilerImpl.*;
 import static com.oracle.graal.nodes.StructuredGraph.*;
-import static com.oracle.graal.phases.GraalOptions.*;
 import static com.oracle.graal.phases.common.InliningUtil.*;
 
 import java.io.*;
 import java.lang.management.*;
-import java.lang.reflect.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
@@ -42,6 +41,7 @@ import com.oracle.graal.api.code.CallingConvention.Type;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.baseline.*;
 import com.oracle.graal.compiler.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.debug.*;
 import com.oracle.graal.debug.Debug.Scope;
 import com.oracle.graal.debug.internal.*;
@@ -57,9 +57,7 @@ import com.oracle.graal.phases.tiers.*;
 
 import edu.umd.cs.findbugs.annotations.*;
 
-public class CompilationTask implements Runnable, Comparable {
-
-    private static final long TIMESTAMP_START = System.currentTimeMillis();
+public class CompilationTask implements Runnable, Comparable<Object> {
 
     // Keep static finals in a group with withinEnqueue as the last one. CompilationTask can be
     // called from within it's own clinit so it needs to be careful about accessing state. Once
@@ -314,7 +312,7 @@ public class CompilationTask implements Runnable, Comparable {
             }
 
             try (TimerCloseable b = CodeInstallationTime.start()) {
-                installedCode = installMethod(result);
+                installedCode = (HotSpotInstalledCode) installMethod(result);
                 if (!isOSR) {
                     ProfilingInfo profile = method.getProfilingInfo();
                     profile.setCompilerIRSize(StructuredGraph.class, graph.getNodeCount());
@@ -365,31 +363,30 @@ public class CompilationTask implements Runnable, Comparable {
      */
     private void printCompilation() {
         final boolean isOSR = entryBCI != StructuredGraph.INVOCATION_ENTRY_BCI;
-        final int mod = method.getModifiers();
         String compilerName = "";
         if (HotSpotCIPrintCompilerName.getValue()) {
             compilerName = "Graal:";
         }
         HotSpotVMConfig config = backend.getRuntime().getConfig();
         int compLevel = config.compilationLevelFullOptimization;
-        char compLevelChar;
+        String compLevelString;
         if (config.tieredCompilation) {
-            compLevelChar = '-';
+            compLevelString = "- ";
             if (compLevel != -1) {
-                compLevelChar = (char) ('0' + compLevel);
+                compLevelString = (char) ('0' + compLevel) + " ";
             }
         } else {
-            compLevelChar = ' ';
+            compLevelString = "";
         }
         boolean hasExceptionHandlers = method.getExceptionHandlers().length > 0;
-        TTY.println(String.format("%s%7d %4d %c%c%c%c%c%c      %s %s(%d bytes)", compilerName, (System.currentTimeMillis() - TIMESTAMP_START), id, isOSR ? '%' : ' ',
-                        Modifier.isSynchronized(mod) ? 's' : ' ', hasExceptionHandlers ? '!' : ' ', blocking ? 'b' : ' ', Modifier.isNative(mod) ? 'n' : ' ', compLevelChar,
-                        MetaUtil.format("%H::%n(%p)", method), isOSR ? "@ " + entryBCI + " " : "", method.getCodeSize()));
+        TTY.println(String.format("%s%7d %4d %c%c%c%c%c %s      %s %s(%d bytes)", compilerName, backend.getRuntime().compilerToVm.getTimeStamp(), id, isOSR ? '%' : ' ', method.isSynchronized() ? 's'
+                        : ' ', hasExceptionHandlers ? '!' : ' ', blocking ? 'b' : ' ', method.isNative() ? 'n' : ' ', compLevelString, MetaUtil.format("%H::%n(%p)", method), isOSR ? "@ " + entryBCI +
+                        " " : "", method.getCodeSize()));
     }
 
-    private HotSpotInstalledCode installMethod(final CompilationResult compResult) {
+    private InstalledCode installMethod(final CompilationResult compResult) {
         final HotSpotCodeCacheProvider codeCache = backend.getProviders().getCodeCache();
-        HotSpotInstalledCode installedCode = null;
+        InstalledCode installedCode = null;
         try (Scope s = Debug.scope("CodeInstall", new DebugDumpScope(String.valueOf(id), true), codeCache, method)) {
             installedCode = codeCache.installMethod(method, compResult);
         } catch (Throwable e) {

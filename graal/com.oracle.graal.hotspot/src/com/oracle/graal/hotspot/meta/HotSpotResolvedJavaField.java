@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2011, 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,17 +23,16 @@
 package com.oracle.graal.hotspot.meta;
 
 import static com.oracle.graal.api.meta.MetaUtil.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
 import static com.oracle.graal.hotspot.HotSpotGraalRuntime.*;
 import static com.oracle.graal.hotspot.meta.HotSpotResolvedObjectType.*;
-import static com.oracle.graal.phases.GraalOptions.*;
-import static java.lang.reflect.Modifier.*;
 
 import java.lang.annotation.*;
 import java.lang.reflect.*;
 import java.util.*;
 
 import com.oracle.graal.api.meta.*;
-import com.oracle.graal.graph.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.options.*;
 import com.oracle.graal.replacements.*;
@@ -200,11 +199,10 @@ public class HotSpotResolvedJavaField extends CompilerObject implements Resolved
         assert !ImmutableCode.getValue() || isCalledForSnippets() : receiver;
 
         if (receiver == null) {
-            assert isStatic(modifiers);
-            if (Modifier.isFinal(getModifiers())) {
+            assert isStatic();
+            if (isFinal()) {
                 if (holder.isInitialized() && !holder.getName().equals(SystemClassName) && isEmbeddable()) {
                     return readValue(receiver);
-
                 }
             }
         } else {
@@ -212,14 +210,14 @@ public class HotSpotResolvedJavaField extends CompilerObject implements Resolved
              * for non-static final fields, we must assume that they are only initialized if they
              * have a non-default value.
              */
-            assert !isStatic(modifiers);
+            assert !isStatic();
             Object object = HotSpotObjectConstant.asObject(receiver);
 
             // Canonicalization may attempt to process an unsafe read before
             // processing a guard (e.g. a null check or a type check) for this read
             // so we need to check the object being read
             if (object != null && isInObject(object)) {
-                if (Modifier.isFinal(getModifiers())) {
+                if (isFinal()) {
                     Constant value = readValue(receiver);
                     if (assumeNonStaticFinalFieldsAsFinal(object.getClass()) || !value.isDefaultForKind()) {
                         return value;
@@ -244,12 +242,12 @@ public class HotSpotResolvedJavaField extends CompilerObject implements Resolved
 
     /**
      * Determines if a given object contains this field.
-     * 
+     *
      * @return true iff this is a non-static field and its declaring class is assignable from
      *         {@code object}'s class
      */
     public boolean isInObject(Object object) {
-        if (isStatic(modifiers)) {
+        if (isStatic()) {
             return false;
         }
         return getDeclaringClass().isAssignableFrom(HotSpotResolvedObjectType.fromClass(object.getClass()));
@@ -258,15 +256,15 @@ public class HotSpotResolvedJavaField extends CompilerObject implements Resolved
     @Override
     public Constant readValue(Constant receiver) {
         if (receiver == null) {
-            assert isStatic(modifiers);
+            assert isStatic();
             if (holder.isInitialized()) {
-                return runtime().getHostProviders().getConstantReflection().readUnsafeConstant(getKind(), HotSpotObjectConstant.forObject(holder.mirror()), offset, getKind() == Kind.Object);
+                return runtime().getHostProviders().getConstantReflection().readUnsafeConstant(getKind(), HotSpotObjectConstant.forObject(holder.mirror()), offset);
             }
             return null;
         } else {
-            assert !isStatic(modifiers);
+            assert !isStatic();
             assert receiver.isNonNull() && isInObject(HotSpotObjectConstant.asObject(receiver));
-            return runtime().getHostProviders().getConstantReflection().readUnsafeConstant(getKind(), receiver, offset, getKind() == Kind.Object);
+            return runtime().getHostProviders().getConstantReflection().readUnsafeConstant(getKind(), receiver, offset);
         }
     }
 
@@ -331,7 +329,7 @@ public class HotSpotResolvedJavaField extends CompilerObject implements Resolved
 
     /**
      * Checks if this field has the {@link Stable} annotation.
-     * 
+     *
      * @return true if field has {@link Stable} annotation, false otherwise
      */
     public boolean isStable() {

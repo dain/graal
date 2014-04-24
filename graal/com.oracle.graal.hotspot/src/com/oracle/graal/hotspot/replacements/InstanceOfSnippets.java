@@ -33,6 +33,7 @@ import static com.oracle.graal.nodes.extended.BranchProbabilityNode.*;
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.api.meta.ProfilingInfo.TriState;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.hotspot.meta.*;
 import com.oracle.graal.hotspot.nodes.*;
 import com.oracle.graal.hotspot.replacements.TypeCheckSnippetUtils.Hints;
@@ -40,7 +41,6 @@ import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.extended.*;
 import com.oracle.graal.nodes.java.*;
 import com.oracle.graal.nodes.spi.*;
-import com.oracle.graal.nodes.type.*;
 import com.oracle.graal.options.*;
 import com.oracle.graal.replacements.*;
 import com.oracle.graal.replacements.Snippet.ConstantParameter;
@@ -180,7 +180,7 @@ public class InstanceOfSnippets implements Snippets {
      * Type test used when the type being tested against is not known at compile time.
      */
     @Snippet
-    public static Object instanceofDynamic(Class mirror, Object object, Object trueValue, Object falseValue) {
+    public static Object instanceofDynamic(Class<?> mirror, Object object, Object trueValue, Object falseValue) {
         if (probability(NOT_FREQUENT_PROBABILITY, object == null)) {
             isNull.inc();
             return falseValue;

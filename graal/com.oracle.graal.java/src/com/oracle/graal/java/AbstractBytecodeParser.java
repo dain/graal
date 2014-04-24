@@ -25,8 +25,6 @@ package com.oracle.graal.java;
 
 import static com.oracle.graal.api.code.TypeCheckHints.*;
 import static com.oracle.graal.bytecode.Bytecodes.*;
-import static java.lang.reflect.Modifier.*;
-
 import java.util.*;
 
 import com.oracle.graal.api.code.*;
@@ -34,16 +32,15 @@ import com.oracle.graal.api.meta.*;
 import com.oracle.graal.api.meta.ProfilingInfo.TriState;
 import com.oracle.graal.api.meta.ResolvedJavaType.Representation;
 import com.oracle.graal.bytecode.*;
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.calc.*;
 import com.oracle.graal.debug.*;
-import com.oracle.graal.graph.*;
 import com.oracle.graal.java.BciBlockMapping.BciBlock;
 import com.oracle.graal.nodes.*;
-import com.oracle.graal.nodes.calc.*;
-import com.oracle.graal.nodes.calc.FloatConvertNode.FloatConvert;
 import com.oracle.graal.options.*;
 import com.oracle.graal.phases.*;
 
-public abstract class AbstractBytecodeParser<T extends KindProvider, F extends AbstractFrameStateBuilder<T>> {
+public abstract class AbstractBytecodeParser<T extends KindProvider, F extends AbstractFrameStateBuilder<T, F>> {
 
     static class Options {
         // @formatter:off
@@ -327,7 +324,7 @@ public abstract class AbstractBytecodeParser<T extends KindProvider, F extends A
     private void genArithmeticOp(Kind result, int opcode) {
         T y = frameState.pop(result);
         T x = frameState.pop(result);
-        boolean isStrictFP = isStrict(method.getModifiers());
+        boolean isStrictFP = method.isStrict();
         T v;
         switch (opcode) {
             case IADD:
@@ -823,7 +820,7 @@ public abstract class AbstractBytecodeParser<T extends KindProvider, F extends A
      *
      * @return an array of size successorCount with the accumulated probability for each successor.
      */
-    private static double[] successorProbabilites(int successorCount, int[] keySuccessors, double[] keyProbabilities) {
+    public static double[] successorProbabilites(int successorCount, int[] keySuccessors, double[] keyProbabilities) {
         double[] probability = new double[successorCount];
         for (int i = 0; i < keySuccessors.length; i++) {
             probability[keySuccessors[i]] += keyProbabilities[i];
@@ -873,17 +870,11 @@ public abstract class AbstractBytecodeParser<T extends KindProvider, F extends A
             }
         }
 
-        double[] successorProbabilities = successorProbabilites(actualSuccessors.size(), keySuccessors, keyProbabilities);
-        T switchNode = append(genIntegerSwitch(value, actualSuccessors.size(), keys, keyProbabilities, keySuccessors));
-        for (int i = 0; i < actualSuccessors.size(); i++) {
-            setBlockSuccessor(switchNode, i, createBlockTarget(successorProbabilities[i], actualSuccessors.get(i), frameState));
-        }
+        genIntegerSwitch(value, actualSuccessors, keys, keyProbabilities, keySuccessors);
 
     }
 
-    protected abstract void setBlockSuccessor(T switchNode, int i, T createBlockTarget);
-
-    protected abstract T genIntegerSwitch(T value, int size, int[] keys, double[] keyProbabilities, int[] keySuccessors);
+    protected abstract void genIntegerSwitch(T value, ArrayList<BciBlock> actualSuccessors, int[] keys, double[] keyProbabilities, int[] keySuccessors);
 
     private static class SuccessorInfo {
 
@@ -904,17 +895,7 @@ public abstract class AbstractBytecodeParser<T extends KindProvider, F extends A
         return probability == 0 && optimisticOpts.removeNeverExecutedCode() && entryBCI == StructuredGraph.INVOCATION_ENTRY_BCI;
     }
 
-    protected abstract T genDeoptimization();
-
-    /**
-     * Returns a block begin node with the specified state. If the specified probability is 0, the
-     * block deoptimizes immediately.
-     */
-    protected abstract T createBlockTarget(double probability, BciBlock bciBlock, AbstractFrameStateBuilder<T> stateAfter);
-
     protected abstract void processBlock(BciBlock block);
-
-    protected abstract void appendGoto(T target);
 
     protected abstract void iterateBytecodesForBlock(BciBlock block);
 

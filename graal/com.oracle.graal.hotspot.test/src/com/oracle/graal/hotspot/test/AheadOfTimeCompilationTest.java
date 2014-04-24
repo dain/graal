@@ -24,8 +24,8 @@ package com.oracle.graal.hotspot.test;
 
 import static com.oracle.graal.api.code.CodeUtil.*;
 import static com.oracle.graal.compiler.GraalCompiler.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
 import static com.oracle.graal.nodes.ConstantNode.*;
-import static com.oracle.graal.phases.GraalOptions.*;
 
 import org.junit.*;
 
@@ -81,7 +81,7 @@ public class AheadOfTimeCompilationTest extends GraalCompilerTest {
         assertEquals(0, result.getNodes().filter(ReadNode.class).count());
     }
 
-    public static Class getClassObject() {
+    public static Class<AheadOfTimeCompilationTest> getClassObject() {
         return AheadOfTimeCompilationTest.class;
     }
 
@@ -112,7 +112,7 @@ public class AheadOfTimeCompilationTest extends GraalCompilerTest {
         assertEquals(0, result.getNodes().filter(ReadNode.class).count());
     }
 
-    public static Class getPrimitiveClassObject() {
+    public static Class<Integer> getPrimitiveClassObject() {
         return int.class;
     }
 

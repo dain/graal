@@ -7,9 +7,17 @@
 * Explicit types for inputs (InputType enum).
 * Added graal.version system property to Graal enabled VM builds.
 * Transitioned to JDK 8 as minimum JDK level for Graal.
+* Added support for stack introspection.
 * ...
 
 ### Truffle
+* The method CallTarget#call takes now a variable number of Object arguments.
+* Support for collecting stack traces and for accessing the current frame in slow paths.
+* Renamed CallNode to DirectCallNode.
+* Renamed TruffleRuntime#createCallNode to TruffleRuntime#createDirectCallNode.
+* Added IndirectCallNode for calls with a changing CallTarget. 
+* Added TruffleRuntime#createIndirectCallNode to create an IndirectCallNode.
+* DirectCallNode#inline was renamed to DirectCallNode#forceInlining().
 * ...
 
 ## Version 0.2

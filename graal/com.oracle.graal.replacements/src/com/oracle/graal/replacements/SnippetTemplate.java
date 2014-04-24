@@ -35,6 +35,8 @@ import java.util.concurrent.*;
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.api.replacements.*;
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.debug.*;
 import com.oracle.graal.debug.Debug.Scope;
 import com.oracle.graal.debug.internal.*;
@@ -47,7 +49,6 @@ import com.oracle.graal.nodes.calc.*;
 import com.oracle.graal.nodes.extended.*;
 import com.oracle.graal.nodes.java.*;
 import com.oracle.graal.nodes.spi.*;
-import com.oracle.graal.nodes.type.*;
 import com.oracle.graal.nodes.util.*;
 import com.oracle.graal.phases.common.*;
 import com.oracle.graal.phases.common.FloatingReadPhase.MemoryMapImpl;
@@ -101,7 +102,7 @@ public class SnippetTemplate {
             this.method = method;
             instantiationCounter = Debug.metric("SnippetInstantiationCount[%s]", method);
             instantiationTimer = Debug.timer("SnippetInstantiationTime[%s]", method);
-            assert Modifier.isStatic(method.getModifiers()) : "snippet method must be static: " + MetaUtil.format("%H.%n", method);
+            assert method.isStatic() : "snippet method must be static: " + MetaUtil.format("%H.%n", method);
             int count = method.getSignature().getParameterCount(false);
             constantParameters = new boolean[count];
             varargsParameters = new boolean[count];
@@ -207,7 +208,7 @@ public class SnippetTemplate {
             return this;
         }
 
-        public Arguments addVarargs(String name, Class componentType, Stamp argStamp, Object value) {
+        public Arguments addVarargs(String name, Class<?> componentType, Stamp argStamp, Object value) {
             assert check(name, false, true);
             Varargs varargs = new Varargs(componentType, argStamp, value);
             values[nextParamIdx] = varargs;
@@ -276,17 +277,17 @@ public class SnippetTemplate {
      */
     static class Varargs {
 
-        protected final Class componentType;
+        protected final Class<?> componentType;
         protected final Stamp stamp;
         protected final Object value;
         protected final int length;
 
-        protected Varargs(Class componentType, Stamp stamp, Object value) {
+        protected Varargs(Class<?> componentType, Stamp stamp, Object value) {
             this.componentType = componentType;
             this.stamp = stamp;
             this.value = value;
             if (value instanceof List) {
-                this.length = ((List) value).size();
+                this.length = ((List<?>) value).size();
             } else {
                 this.length = Array.getLength(value);
             }
@@ -807,10 +808,10 @@ public class SnippetTemplate {
                 ParameterNode[] params = (ParameterNode[]) parameter;
                 Varargs varargs = (Varargs) argument;
                 int length = params.length;
-                List list = null;
+                List<?> list = null;
                 Object array = null;
                 if (varargs.value instanceof List) {
-                    list = (List) varargs.value;
+                    list = (List<?>) varargs.value;
                     assert list.size() == length : length + " != " + list.size();
                 } else {
                     array = varargs.value;

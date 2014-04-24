@@ -29,13 +29,14 @@ import com.oracle.graal.api.meta.*;
 import com.oracle.graal.compiler.gen.*;
 import com.oracle.graal.lir.*;
 import com.oracle.graal.lir.amd64.*;
+import com.oracle.graal.lir.gen.*;
 import com.oracle.graal.nodes.*;
 import com.oracle.graal.nodes.calc.*;
 import com.oracle.graal.nodes.spi.*;
 
 public abstract class AMD64NodeLIRBuilder extends NodeLIRBuilder {
 
-    public AMD64NodeLIRBuilder(StructuredGraph graph, LIRGenerator gen) {
+    public AMD64NodeLIRBuilder(StructuredGraph graph, LIRGeneratorTool gen) {
         super(graph, gen);
     }
 
@@ -60,7 +61,7 @@ public abstract class AMD64NodeLIRBuilder extends NodeLIRBuilder {
     @Override
     public void emitNullCheck(ValueNode v, DeoptimizingNode deopt) {
         assert v.getKind() == Kind.Object : v + " - " + v.stamp() + " @ " + deopt;
-        append(new AMD64Move.NullCheckOp(gen.load(operand(v)), gen.state(deopt)));
+        append(new AMD64Move.NullCheckOp(gen.load(operand(v)), state(deopt)));
     }
 
     @Override
@@ -73,7 +74,7 @@ public abstract class AMD64NodeLIRBuilder extends NodeLIRBuilder {
                 if (((fixedWithNextNode instanceof IntegerDivNode) || (fixedWithNextNode instanceof IntegerRemNode)) && fixedWithNextNode.getClass() != divRem.getClass()) {
                     FixedBinaryNode otherDivRem = (FixedBinaryNode) fixedWithNextNode;
                     if (otherDivRem.x() == divRem.x() && otherDivRem.y() == divRem.y() && !hasOperand(otherDivRem)) {
-                        Value[] results = ((AMD64LIRGenerator) gen).emitIntegerDivRem(operand(divRem.x()), operand(divRem.y()), (DeoptimizingNode) valueNode);
+                        Value[] results = ((AMD64LIRGenerator) gen).emitIntegerDivRem(operand(divRem.x()), operand(divRem.y()), state((DeoptimizingNode) valueNode));
                         if (divRem instanceof IntegerDivNode) {
                             setResult(divRem, results[0]);
                             setResult(otherDivRem, results[1]);
@@ -103,11 +104,11 @@ public abstract class AMD64NodeLIRBuilder extends NodeLIRBuilder {
 
     @Override
     public void visitInfopointNode(InfopointNode i) {
-        append(new InfopointOp(gen.stateFor(i.getState()), i.reason));
+        append(new InfopointOp(stateFor(i.getState()), i.reason));
     }
 
     @Override
-    public AMD64LIRGenerator getLIRGenerator() {
+    public AMD64LIRGenerator getLIRGeneratorTool() {
         return (AMD64LIRGenerator) gen;
     }
 }

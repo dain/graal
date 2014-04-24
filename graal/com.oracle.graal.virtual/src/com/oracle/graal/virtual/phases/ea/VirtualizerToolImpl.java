@@ -22,7 +22,7 @@
  */
 package com.oracle.graal.virtual.phases.ea;
 
-import static com.oracle.graal.phases.GraalOptions.*;
+import static com.oracle.graal.compiler.common.GraalOptions.*;
 
 import java.util.*;
 
@@ -71,7 +71,7 @@ class VirtualizerToolImpl implements VirtualizerTool {
         return assumptions;
     }
 
-    public void reset(PartialEscapeBlockState newState, ValueNode newCurrent, FixedNode newPosition, GraphEffectList newEffects) {
+    public void reset(PartialEscapeBlockState<?> newState, ValueNode newCurrent, FixedNode newPosition, GraphEffectList newEffects) {
         deleted = false;
         state = newState;
         current = newCurrent;

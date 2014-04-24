@@ -22,6 +22,7 @@
  */
 
 #include "precompiled.hpp"
+#include "code/compiledIC.hpp"
 #include "compiler/compileBroker.hpp"
 #include "compiler/disassembler.hpp"
 #include "runtime/javaCalls.hpp"
@@ -454,8 +455,7 @@ void CodeInstaller::initialize_fields(oop compiled_code) {
 
   _code = (arrayOop) CompilationResult::targetCode(comp_result);
   _code_size = CompilationResult::targetCodeSize(comp_result);
-  // The frame size we get from the target method does not include the return address, so add one word for it here.
-  _total_frame_size = CompilationResult::frameSize(comp_result) + HeapWordSize;  // FIXME this is an x86-ism
+  _total_frame_size = CompilationResult::totalFrameSize(comp_result);
   _custom_stack_area_offset = CompilationResult::customStackAreaOffset(comp_result);
 
   // Pre-calculate the constants section size.  This is required for PC-relative addressing.
@@ -474,12 +474,35 @@ void CodeInstaller::initialize_fields(oop compiled_code) {
   _next_call_type = INVOKE_INVALID;
 }
 
+int CodeInstaller::estimate_stub_entries() {
+  // Estimate the number of static call stubs that might be emitted.
+  int static_call_stubs = 0;
+  for (int i = 0; i < _sites->length(); i++) {
+    oop site = ((objArrayOop) (_sites))->obj_at(i);
+    if (site->is_a(CompilationResult_Mark::klass())) {
+      oop id_obj = CompilationResult_Mark::id(site);
+      if (id_obj != NULL) {
+        assert(java_lang_boxing_object::is_instance(id_obj, T_INT), "Integer id expected");
+        jint id = id_obj->int_field(java_lang_boxing_object::value_offset_in_bytes(T_INT));
+        if (id == INVOKESTATIC || id == INVOKESPECIAL) {
+          static_call_stubs++;
+        }
+      }
+    }
+  }
+  return static_call_stubs;
+}
+
 // perform data and call relocation on the CodeBuffer
 bool CodeInstaller::initialize_buffer(CodeBuffer& buffer) {
   int locs_buffer_size = _sites->length() * (relocInfo::length_limit + sizeof(relocInfo));
   char* locs_buffer = NEW_RESOURCE_ARRAY(char, locs_buffer_size);
   buffer.insts()->initialize_shared_locs((relocInfo*)locs_buffer, locs_buffer_size / sizeof(relocInfo));
-  buffer.initialize_stubs_size(256);
+  // Allocate enough space in the stub section for the static call
+  // stubs.  Stubs have extra relocs but they are managed by the stub
+  // section itself so they don't need to be accounted for in the
+  // locs_buffer above.
+  buffer.initialize_stubs_size(estimate_stub_entries() * CompiledStaticCall::to_interp_stub_size());
   buffer.initialize_consts_size(_constants_size);
 
   _debug_recorder = new DebugInformationRecorder(_oop_recorder);
@@ -653,8 +676,11 @@ void CodeInstaller::record_scope(jint pc_offset, oop frame, GrowableArray<ScopeV
   oop hotspot_method = BytecodePosition::method(frame);
   Method* method = getMethodFromHotSpotMethod(hotspot_method);
   jint bci = BytecodePosition::bci(frame);
+  if (bci == BytecodeFrame::BEFORE_BCI()) {
+    bci = SynchronizationEntryBCI;
+  }
   bool reexecute;
-  if (bci == -1 || bci == -2){
+  if (bci == SynchronizationEntryBCI){
      reexecute = false;
   } else {
     Bytecodes::Code code = Bytecodes::java_code_at(method, method->bcp_from(bci));
@@ -778,6 +804,10 @@ void CodeInstaller::site_Call(CodeBuffer& buffer, jint pc_offset, oop site) {
 
     TRACE_graal_3("method call");
     CodeInstaller::pd_relocate_JavaMethod(hotspot_method, pc_offset);
+    if (_next_call_type == INVOKESTATIC || _next_call_type == INVOKESPECIAL) {
+      // Need a static call stub for transitions from compiled to interpreted.
+      CompiledStaticCall::emit_to_interp_stub(buffer, _instructions->start() + pc_offset);
+    }
   }
 
   _next_call_type = INVOKE_INVALID;
