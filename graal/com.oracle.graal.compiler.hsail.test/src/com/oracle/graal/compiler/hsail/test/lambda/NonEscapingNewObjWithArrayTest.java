@@ -23,11 +23,15 @@
 
 package com.oracle.graal.compiler.hsail.test.lambda;
 
+import static com.oracle.graal.debug.Debug.*;
+import static com.oracle.graal.debug.DelegatingDebugConfig.Feature.*;
+
 import java.util.*;
 
 import org.junit.*;
 
 import com.oracle.graal.compiler.hsail.test.infra.*;
+import com.oracle.graal.debug.*;
 
 /**
  * Tests non-escaping object creation and calling a method on it.
@@ -77,13 +81,17 @@ public class NonEscapingNewObjWithArrayTest extends GraalKernelTester {
     @Ignore
     @Test
     public void test() {
-        testGeneratedHsail();
+        try (DebugConfigScope s = disableIntercept()) {
+            testGeneratedHsail();
+        }
     }
 
     @Ignore
     @Test
     public void testUsingLambdaMethod() {
-        testGeneratedHsailUsingLambdaMethod();
+        try (DebugConfigScope dcs = setConfig(new DelegatingDebugConfig().disable(INTERCEPT))) {
+            testGeneratedHsailUsingLambdaMethod();
+        }
     }
 
 }

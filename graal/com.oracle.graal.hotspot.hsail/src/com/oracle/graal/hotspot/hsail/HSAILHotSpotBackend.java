@@ -27,6 +27,8 @@ import static com.oracle.graal.api.code.CodeUtil.*;
 import static com.oracle.graal.api.code.ValueUtil.*;
 import static com.oracle.graal.api.meta.LocationIdentity.*;
 import static com.oracle.graal.compiler.GraalCompiler.*;
+import static com.oracle.graal.hotspot.hsail.HSAILHotSpotBackend.Options.*;
+import static com.oracle.graal.hotspot.hsail.replacements.HSAILNewObjectSnippets.Options.*;
 
 import java.lang.reflect.*;
 import java.util.*;
@@ -44,11 +46,12 @@ import com.oracle.graal.api.code.CompilationResult.Mark;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.asm.*;
 import com.oracle.graal.asm.hsail.*;
-import com.oracle.graal.compiler.gen.*;
+import com.oracle.graal.compiler.common.*;
+import com.oracle.graal.compiler.common.cfg.*;
+import com.oracle.graal.compiler.common.type.*;
 import com.oracle.graal.debug.*;
 import com.oracle.graal.debug.Debug.Scope;
 import com.oracle.graal.gpu.*;
-import com.oracle.graal.graph.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.hotspot.bridge.CompilerToVM.CodeInstallResult;
 import com.oracle.graal.hotspot.meta.*;
@@ -57,22 +60,19 @@ import com.oracle.graal.hsail.*;
 import com.oracle.graal.java.*;
 import com.oracle.graal.lir.*;
 import com.oracle.graal.lir.asm.*;
+import com.oracle.graal.lir.gen.*;
 import com.oracle.graal.lir.hsail.*;
-import com.oracle.graal.lir.hsail.HSAILMove.AtomicGetAndAddOp;
-import com.oracle.graal.lir.hsail.HSAILControlFlow.DeoptimizeOp;
+import com.oracle.graal.lir.hsail.HSAILControlFlow.DeoptimizingOp;
+import com.oracle.graal.lir.hsail.HSAILMove.AtomicReadAndAddOp;
 import com.oracle.graal.nodes.*;
-import com.oracle.graal.nodes.cfg.*;
 import com.oracle.graal.nodes.StructuredGraph.GuardsStage;
 import com.oracle.graal.nodes.calc.*;
 import com.oracle.graal.nodes.extended.*;
 import com.oracle.graal.nodes.java.*;
-import com.oracle.graal.nodes.type.*;
+import com.oracle.graal.nodes.spi.*;
 import com.oracle.graal.options.*;
 import com.oracle.graal.phases.*;
 import com.oracle.graal.phases.tiers.*;
-
-import static com.oracle.graal.hotspot.hsail.HSAILHotSpotBackend.Options.*;
-import static com.oracle.graal.hotspot.hsail.replacements.HSAILNewObjectSnippets.Options.*;
 
 /**
  * HSAIL specific backend.
@@ -295,16 +295,15 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
         assert hsailCode.getDataReferences().isEmpty();
 
         // from host code
-        result.setFrameSize(hostCode.getFrameSize());
+        result.setTotalFrameSize(hostCode.getTotalFrameSize());
         result.setCustomStackAreaOffset(hostCode.getCustomStackAreaOffset());
         result.setRegisterRestoreEpilogueOffset(hostCode.getRegisterRestoreEpilogueOffset());
         result.setTargetCode(hostCode.getTargetCode(), hostCode.getTargetCodeSize());
         for (CodeAnnotation annotation : hostCode.getAnnotations()) {
             result.addAnnotation(annotation);
         }
-        CompilationResult.Mark[] noMarks = {};
         for (Mark mark : hostCode.getMarks()) {
-            result.recordMark(mark.pcOffset, mark.id, noMarks);
+            result.recordMark(mark.pcOffset, mark.id);
         }
         for (ExceptionHandler handler : hostCode.getExceptionHandlers()) {
             result.recordExceptionHandler(handler.pcOffset, handler.handlerPos);
@@ -376,7 +375,7 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
     }
 
     @Override
-    public LIRGenerator newLIRGenerator(CallingConvention cc, LIRGenerationResult lirGenRes) {
+    public LIRGeneratorTool newLIRGenerator(CallingConvention cc, LIRGenerationResult lirGenRes) {
         return new HSAILHotSpotLIRGenerator(getProviders(), getRuntime().getConfig(), cc, lirGenRes);
     }
 
@@ -386,7 +385,7 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
     }
 
     @Override
-    public NodeLIRBuilder newNodeLIRGenerator(StructuredGraph graph, LIRGenerator lirGen) {
+    public NodeLIRBuilderTool newNodeLIRBuilder(StructuredGraph graph, LIRGeneratorTool lirGen) {
         return new HSAILHotSpotNodeLIRBuilder(graph, lirGen);
     }
 
@@ -433,7 +432,7 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
         // save lirGen for later use by setHostGraph
         CompilationResultBuilder crb = new HSAILCompilationResultBuilder(getCodeCache(), getForeignCalls(), frameMap, masm, frameContext, compilationResult,
                         (HSAILHotSpotLIRGenerationResult) lirGenRes);
-        crb.setFrameSize(frameMap.frameSize());
+        crb.setTotalFrameSize(frameMap.totalFrameSize());
         return crb;
     }
 
@@ -444,6 +443,7 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
 
         HotSpotVMConfig config = getRuntime().getConfig();
         boolean useHSAILDeoptimization = config.useHSAILDeoptimization;
+        boolean useHSAILSafepoints = config.useHSAILSafepoints;
 
         // see what graph nodes we have to see if we are using the thread register
         // if not, we don't have to emit the code that sets that up
@@ -451,7 +451,7 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
         boolean usesThreadRegister = false;
         search: for (AbstractBlock<?> b : lir.linearScanOrder()) {
             for (LIRInstruction op : lir.getLIRforBlock(b)) {
-                if (op instanceof AtomicGetAndAddOp && ((AtomicGetAndAddOp) op).getAddress().toAddress().getBase().equals(HSAIL.threadRegister)) {
+                if (op instanceof AtomicReadAndAddOp) {
                     usesThreadRegister = true;
                     assert useHSAILDeoptimization : "cannot use thread register if HSAIL deopt support is disabled";
                     break search;
@@ -468,7 +468,7 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
         // We're subtracting 1 because we're not making the final gid as a parameter.
 
         int nonConstantParamCount = sigParamCount - 1;
-        boolean isStatic = (Modifier.isStatic(method.getModifiers()));
+        boolean isStatic = (method.isStatic());
         // Determine if this is an object lambda.
         boolean isObjectLambda = true;
 
@@ -577,13 +577,23 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
 
             // Aliases for d17
             RegisterValue d17_donorThreadIndex = HSAIL.d17.asValue(wordKind);
+            RegisterValue d17_safepointFlagAddrIndex = d17_donorThreadIndex;
 
             // Aliases for s34
             RegisterValue s34_deoptOccurred = HSAIL.s34.asValue(Kind.Int);
             RegisterValue s34_donorThreadIndex = s34_deoptOccurred;
 
             asm.emitLoadKernelArg(d16_deoptInfo, asm.getDeoptInfoName(), "u64");
-            asm.emitComment("// Check if a deopt has occurred and abort if true before doing any work");
+            asm.emitComment("// Check if a deopt or safepoint has occurred and abort if true before doing any work");
+
+            if (useHSAILSafepoints) {
+                // Load address of _notice_safepoints field
+                asm.emitLoad(wordKind, d17_safepointFlagAddrIndex, new HSAILAddressValue(wordKind, d16_deoptInfo, config.hsailNoticeSafepointsOffset).toAddress());
+                // Load int value from that field
+                asm.emitLoadAcquire(s34_deoptOccurred, new HSAILAddressValue(Kind.Int, d17_safepointFlagAddrIndex, 0).toAddress());
+                asm.emitCompare(Kind.Int, s34_deoptOccurred, Constant.forInt(0), "ne", false, false);
+                asm.cbr(deoptInProgressLabel);
+            }
             asm.emitLoadAcquire(s34_deoptOccurred, new HSAILAddressValue(Kind.Int, d16_deoptInfo, config.hsailDeoptOccurredOffset).toAddress());
             asm.emitCompare(Kind.Int, s34_deoptOccurred, Constant.forInt(0), "ne", false, false);
             asm.cbr(deoptInProgressLabel);
@@ -694,11 +704,11 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
             AllocatableValue waveMathScratch1 = HSAIL.d18.asValue(wordKind);
             AllocatableValue waveMathScratch2 = HSAIL.d19.asValue(wordKind);
 
-            AllocatableValue actionAndReasonReg = HSAIL.s32.asValue(Kind.Int);
-            AllocatableValue codeBufferOffsetReg = HSAIL.s33.asValue(Kind.Int);
+            AllocatableValue actionAndReasonReg = HSAIL.actionAndReasonReg.asValue(Kind.Int);
+            AllocatableValue codeBufferOffsetReg = HSAIL.codeBufferOffsetReg.asValue(Kind.Int);
             AllocatableValue scratch32 = HSAIL.s34.asValue(Kind.Int);
             AllocatableValue workidreg = HSAIL.s35.asValue(Kind.Int);
-            AllocatableValue dregOopMapReg = HSAIL.s39.asValue(Kind.Int);
+            AllocatableValue dregOopMapReg = HSAIL.dregOopMapReg.asValue(Kind.Int);
 
             HSAILAddress deoptNextIndexAddr = new HSAILAddressValue(Kind.Int, scratch64, offsetToDeoptNextIndex).toAddress();
             HSAILAddress neverRanArrayAddr = new HSAILAddressValue(Kind.Int, scratch64, offsetToNeverRanArray).toAddress();
@@ -834,7 +844,7 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
         compilationResult.setHostGraph(prepareHostGraph(method, lirGenRes.getDeopts(), getProviders(), config));
     }
 
-    private static StructuredGraph prepareHostGraph(ResolvedJavaMethod method, List<DeoptimizeOp> deopts, HotSpotProviders providers, HotSpotVMConfig config) {
+    private static StructuredGraph prepareHostGraph(ResolvedJavaMethod method, List<DeoptimizingOp> deopts, HotSpotProviders providers, HotSpotVMConfig config) {
         if (deopts.isEmpty()) {
             return null;
         }
@@ -843,17 +853,17 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
         ParameterNode hsailFrame = hostGraph.unique(new ParameterNode(1, StampFactory.forKind(providers.getCodeCache().getTarget().wordKind)));
         ParameterNode reasonAndAction = hostGraph.unique(new ParameterNode(2, StampFactory.intValue()));
         ParameterNode speculation = hostGraph.unique(new ParameterNode(3, StampFactory.object()));
-        AbstractBeginNode[] branches = new AbstractBeginNode[deopts.size() + 1];
+        BeginNode[] branches = new BeginNode[deopts.size() + 1];
         int[] keys = new int[deopts.size()];
         int[] keySuccessors = new int[deopts.size() + 1];
         double[] keyProbabilities = new double[deopts.size() + 1];
         int i = 0;
-        Collections.sort(deopts, new Comparator<DeoptimizeOp>() {
-            public int compare(DeoptimizeOp o1, DeoptimizeOp o2) {
+        Collections.sort(deopts, new Comparator<DeoptimizingOp>() {
+            public int compare(DeoptimizingOp o1, DeoptimizingOp o2) {
                 return o1.getCodeBufferPos() - o2.getCodeBufferPos();
             }
         });
-        for (DeoptimizeOp deopt : deopts) {
+        for (DeoptimizingOp deopt : deopts) {
             keySuccessors[i] = i;
             keyProbabilities[i] = 1.0 / deopts.size();
             keys[i] = deopt.getCodeBufferPos();
@@ -875,15 +885,14 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
         return hostGraph;
     }
 
-    private static AbstractBeginNode createHostCrashBranch(StructuredGraph hostGraph, ValueNode deoptId) {
+    private static BeginNode createHostCrashBranch(StructuredGraph hostGraph, ValueNode deoptId) {
         VMErrorNode vmError = hostGraph.add(new VMErrorNode("Error in HSAIL deopt. DeoptId=%d", deoptId));
         // ConvertNode.convert(hostGraph, Kind.Long, deoptId)));
         vmError.setNext(hostGraph.add(new ReturnNode(ConstantNode.defaultForKind(hostGraph.method().getSignature().getReturnKind(), hostGraph))));
         return BeginNode.begin(vmError);
     }
 
-    private static AbstractBeginNode createHostDeoptBranch(DeoptimizeOp deopt, ParameterNode hsailFrame, ValueNode reasonAndAction, ValueNode speculation, HotSpotProviders providers,
-                    HotSpotVMConfig config) {
+    private static BeginNode createHostDeoptBranch(DeoptimizingOp deopt, ParameterNode hsailFrame, ValueNode reasonAndAction, ValueNode speculation, HotSpotProviders providers, HotSpotVMConfig config) {
         BeginNode branch = hsailFrame.graph().add(new BeginNode());
         DynamicDeoptimizeNode deoptimization = hsailFrame.graph().add(new DynamicDeoptimizeNode(reasonAndAction, speculation));
         deoptimization.setStateBefore(createFrameState(deopt.getFrameState().topFrame, hsailFrame, providers, config));
@@ -957,7 +966,7 @@ public class HSAILHotSpotBackend extends HotSpotBackend {
             int longSize = providers.getCodeCache().getTarget().arch.getSizeInBytes(Kind.Long);
             long offset = config.hsailFrameSaveAreaOffset + longSize * (regNumber - HSAIL.d0.number);
             LocationNode numSRegsLocation = ConstantLocationNode.create(FINAL_LOCATION, Kind.Byte, config.hsailFrameNumSRegOffset, hostGraph);
-            ValueNode numSRegs = hostGraph.unique(new FloatingReadNode(hsailFrame, numSRegsLocation, null, StampFactory.forInteger(8, false)));
+            ValueNode numSRegs = hostGraph.unique(new FloatingReadNode(hsailFrame, numSRegsLocation, null, StampFactory.forInteger(8)));
             numSRegs = SignExtendNode.convert(numSRegs, StampFactory.forKind(Kind.Byte));
             location = IndexedLocationNode.create(FINAL_LOCATION, valueKind, offset, numSRegs, hostGraph, 4);
         } else {

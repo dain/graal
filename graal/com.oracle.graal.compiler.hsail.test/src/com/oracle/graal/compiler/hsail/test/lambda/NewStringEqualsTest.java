@@ -23,9 +23,12 @@
 
 package com.oracle.graal.compiler.hsail.test.lambda;
 
+import static com.oracle.graal.debug.Debug.*;
+
 import org.junit.*;
 
 import com.oracle.graal.compiler.hsail.test.infra.*;
+import com.oracle.graal.debug.*;
 
 /**
  * Tests creating a String and calling .equals() on it.
@@ -64,13 +67,17 @@ public class NewStringEqualsTest extends GraalKernelTester {
     @Ignore
     @Test
     public void test() {
-        testGeneratedHsail();
+        try (DebugConfigScope s = disableIntercept()) {
+            testGeneratedHsail();
+        }
     }
 
     @Ignore
     @Test
     public void testUsingLambdaMethod() {
-        testGeneratedHsailUsingLambdaMethod();
+        try (DebugConfigScope s = disableIntercept()) {
+            testGeneratedHsailUsingLambdaMethod();
+        }
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,17 +26,16 @@ package com.oracle.graal.hotspot.hsail;
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
 import com.oracle.graal.asm.*;
-import com.oracle.graal.compiler.gen.*;
+import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.compiler.hsail.*;
-import com.oracle.graal.graph.*;
+import com.oracle.graal.debug.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.hotspot.HotSpotVMConfig.CompressEncoding;
-import com.oracle.graal.hotspot.hsail.nodes.*;
 import com.oracle.graal.hotspot.meta.*;
 import com.oracle.graal.hotspot.nodes.*;
 import com.oracle.graal.lir.*;
+import com.oracle.graal.lir.gen.*;
 import com.oracle.graal.lir.hsail.*;
-import com.oracle.graal.lir.hsail.HSAILMove.AtomicGetAndAddOp;
 import com.oracle.graal.lir.hsail.HSAILMove.CompareAndSwapOp;
 import com.oracle.graal.nodes.*;
 
@@ -45,7 +44,7 @@ import com.oracle.graal.nodes.*;
  */
 public class HSAILHotSpotNodeLIRBuilder extends HSAILNodeLIRBuilder implements HotSpotNodeLIRBuilder {
 
-    public HSAILHotSpotNodeLIRBuilder(StructuredGraph graph, LIRGenerator lirGen) {
+    public HSAILHotSpotNodeLIRBuilder(StructuredGraph graph, LIRGeneratorTool lirGen) {
         super(graph, lirGen);
     }
 
@@ -78,14 +77,6 @@ public class HSAILHotSpotNodeLIRBuilder extends HSAILNodeLIRBuilder implements H
         }
     }
 
-    public void visitAtomicGetAndAdd(LoweredAtomicGetAndAddNode node, Value address) {
-        Variable nodeResult = newVariable(node.getKind());
-        Value delta = getGen().loadNonConst(operand(node.getDelta()));
-        HSAILAddressValue addressValue = getGen().asAddressValue(address);
-        append(new AtomicGetAndAddOp(nodeResult, addressValue, delta));
-        setResult(node, nodeResult);
-    }
-
     public void visitDirectCompareAndSwap(DirectCompareAndSwapNode x) {
         Kind kind = x.newValue().getKind();
         assert kind == x.expectedValue().getKind();
@@ -108,6 +99,19 @@ public class HSAILHotSpotNodeLIRBuilder extends HSAILNodeLIRBuilder implements H
         append(new CompareAndSwapOp(kind, casResult, address, expected, newVal));
 
         setResult(x, casResult);
+    }
+
+    @Override
+    public void visitSafepointNode(SafepointNode i) {
+        HotSpotVMConfig config = getGen().config;
+        if (config.useHSAILSafepoints == true) {
+            LIRFrameState info = state(i);
+            HSAILHotSpotSafepointOp safepoint = new HSAILHotSpotSafepointOp(info, config, this);
+            ((HSAILHotSpotLIRGenerationResult) getGen().getResult()).addDeopt(safepoint);
+            append(safepoint);
+        } else {
+            Debug.log("HSAIL safepoints turned off");
+        }
     }
 
     @Override

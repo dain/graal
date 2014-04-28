@@ -22,7 +22,11 @@
  */
 package com.oracle.graal.compiler.hsail.test;
 
+import static com.oracle.graal.debug.Debug.*;
+
 import org.junit.Test;
+
+import com.oracle.graal.debug.*;
 
 /**
  * Tests allocation of a new String based on string interning.
@@ -35,8 +39,10 @@ public class EscapingNewStringInternTest extends EscapingNewBase {
     }
 
     // at node: 12|Invoke#Direct#intern
-    @Test(expected = com.oracle.graal.graph.GraalInternalError.class)
+    @Test(expected = com.oracle.graal.compiler.common.GraalInternalError.class)
     public void test() {
-        testGeneratedHsail();
+        try (DebugConfigScope s = disableIntercept()) {
+            testGeneratedHsail();
+        }
     }
 }
