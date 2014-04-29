@@ -20,23 +20,31 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.nodes.spi;
+package com.oracle.graal.compiler.match;
 
-import com.oracle.graal.nodes.extended.*;
+import java.lang.annotation.*;
+
+import com.oracle.graal.nodes.*;
 
 /**
- * Marks nodes which may be lowered in combination with a memory operation.
+ * This annotation declares a textual pattern for matching an HIR DAG. It's an s-expression with a
+ * node followed by its inputs. Node types are always uppercase and lowercase words are the names of
+ * nodes.
+ *
+ * <pre>
+ *   NAME := [a-z][a-zA-Z0-9]*
+ *   NODETYPE := [A-Z][a-zA-Z0-9]*
+ *   NODEORNAME :=  NODE [ = NAME ] | NAME
+ *   EXPRESSION := ( NODEORNAME [ EXPRESSION | NODEORNAME [ EXPRESSION | NODEORNAME ] )
+ * </pre>
+ *
+ * All matched nodes except the root of the match and {@link ConstantNode}s must have a single user.
+ * All matched nodes must be in the same block.
  */
-public interface MemoryArithmeticLIRLowerable {
 
-    /**
-     * Attempt to generate a memory form of a node operation. On platforms that support it this will
-     * be called when the merging is safe.
-     * 
-     * @param gen
-     * @param access the memory input which can potentially merge into this operation.
-     * @return null if it's not possible to emit a memory form of this operation. A non-null value
-     *         will be set as the operand of this node.
-     */
-    boolean generate(MemoryArithmeticLIRLowerer gen, Access access);
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+@Repeatable(value = MatchRules.class)
+public @interface MatchRule {
+    String value();
 }

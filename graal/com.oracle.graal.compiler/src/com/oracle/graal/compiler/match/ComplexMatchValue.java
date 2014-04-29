@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,25 +20,30 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.test;
+package com.oracle.graal.compiler.match;
 
-import java.util.*;
+import com.oracle.graal.api.meta.*;
+import com.oracle.graal.compiler.gen.*;
 
-import org.junit.*;
-import org.junit.runners.*;
-import org.junit.runners.model.*;
+/**
+ * A wrapper value for the lazy evaluation of a complex match. There's an intermediate class for the
+ * closure because Value is serializable which is a hassle for the little inner classes which
+ * usually occur here.
+ */
+public class ComplexMatchValue extends Value {
+    /**
+     *
+     */
+    private static final long serialVersionUID = -4734670273590368770L;
 
-public class GraalLongUnitTest extends BlockJUnit4ClassRunner {
+    final ComplexMatchResult result;
 
-    public GraalLongUnitTest(Class<?> klass) throws InitializationError {
-        super(klass);
+    public ComplexMatchValue(ComplexMatchResult result) {
+        super(Kind.Illegal);
+        this.result = result;
     }
 
-    @Override
-    protected List<FrameworkMethod> computeTestMethods() {
-        List<FrameworkMethod> methods = new ArrayList<>(5);
-        methods.addAll(getTestClass().getAnnotatedMethods(Test.class));
-        methods.addAll(getTestClass().getAnnotatedMethods(LongTest.class));
-        return methods;
+    public Value evaluate(NodeLIRBuilder builder) {
+        return result.evaluate(builder);
     }
 }

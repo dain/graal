@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,24 +20,15 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.test;
+package com.oracle.graal.compiler.match;
 
 import java.lang.annotation.*;
 
-/* copy of org.junit.Test */
+/**
+ * The repeatable representation of {@link MatchableNode}. Should never be used directly.
+ */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.METHOD})
-public @interface LongTest {
-
-    static final class None extends Throwable {
-
-        private static final long serialVersionUID = 1L;
-
-        private None() {
-        }
-    }
-
-    Class<? extends Throwable> expected() default None.class;
-
-    long timeout() default 0L;
+@Target(ElementType.TYPE)
+public @interface MatchableNodes {
+    MatchableNode[] value() default {};
 }
