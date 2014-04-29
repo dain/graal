@@ -203,7 +203,7 @@ public abstract class GuardingPiReduction extends BaseReduction {
                 /*
                  * GuardingPiNode succeeds if payload null
                  */
-                ValueNode replacement = StampTool.isObjectAlwaysNull(payload) ? payload : reasoner.untrivialNull(payload);
+                ValueNode replacement = StampTool.isObjectAlwaysNull(payload) ? payload : reasoner.nonTrivialNull(payload);
                 if (replacement != null) {
                     // replacement == null means !isKnownNull(payload)
                     removeGuardingPiNode(envelope, replacement);
@@ -222,7 +222,7 @@ public abstract class GuardingPiReduction extends BaseReduction {
             assert io.type() != null;
             Witness w = state.typeInfo(payload);
             if (w != null && w.isNonNull() && isEqualOrMorePrecise(w.type(), io.type())) {
-                ValueNode d = reasoner.downcasted(payload);
+                ValueNode d = reasoner.downcast(payload);
                 removeGuardingPiNode(envelope, d);
                 return true;
             }
@@ -318,7 +318,7 @@ public abstract class GuardingPiReduction extends BaseReduction {
             warnAboutOutOfTheBlueGuardingPiNode(envelope);
         }
 
-        ValueNode d = reasoner.downcasted(payload);
+        ValueNode d = reasoner.downcast(payload);
         if (d == null) {
             return false;
         }

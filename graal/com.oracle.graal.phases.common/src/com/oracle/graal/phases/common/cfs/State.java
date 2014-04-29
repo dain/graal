@@ -112,7 +112,7 @@ public final class State extends MergeableState<State> implements Cloneable {
      * standardize on one of them, and drop the other? Because the {@link #typeRefinements} eagerly
      * aggregates information for easier querying afterwards, e.g. when producing a "downcasted"
      * value (which involves building a {@link com.oracle.graal.nodes.PiNode}, see
-     * {@link EquationalReasoner#downcasted(com.oracle.graal.nodes.ValueNode) downcasted()}
+     * {@link EquationalReasoner#downcast(com.oracle.graal.nodes.ValueNode) downcast()}
      * </p>
      *
      */
@@ -283,6 +283,8 @@ public final class State extends MergeableState<State> implements Cloneable {
         if (isUnreachable) {
             typeRefinements.clear();
             knownNull.clear();
+            trueFacts.clear();
+            falseFacts.clear();
             return true;
         }
 
@@ -514,6 +516,7 @@ public final class State extends MergeableState<State> implements Cloneable {
         if (isDependencyTainted(object, anchor)) {
             return false;
         }
+        assert anchor instanceof FixedNode;
         ResolvedJavaType stampType = StampTool.typeOrNull(object);
         if (stampType != null && !stampType.isInterface()) {
             return trackIO(object, stampType, anchor);
@@ -548,6 +551,7 @@ public final class State extends MergeableState<State> implements Cloneable {
         if (isDependencyTainted(object, anchor)) {
             return false;
         }
+        assert anchor instanceof FixedNode;
         Witness w = getOrElseAddTypeInfo(object);
         if (w.trackCC(observed, anchor)) {
             versionNr++;
@@ -573,6 +577,7 @@ public final class State extends MergeableState<State> implements Cloneable {
         if (isDependencyTainted(object, anchor)) {
             return false;
         }
+        assert anchor instanceof FixedNode;
         Witness w = getOrElseAddTypeInfo(object);
         if (w.trackIO(observed, anchor)) {
             versionNr++;
@@ -611,6 +616,7 @@ public final class State extends MergeableState<State> implements Cloneable {
      */
     public void addFact(boolean isTrue, LogicNode condition, GuardingNode anchor) {
         assert anchor != null;
+        assert anchor instanceof FixedNode;
         assert !isUnreachable;
 
         if (condition instanceof LogicConstantNode) {
@@ -699,6 +705,7 @@ public final class State extends MergeableState<State> implements Cloneable {
         if (isDependencyTainted(equals.y(), anchor)) {
             return;
         }
+        assert anchor instanceof FixedNode;
         ValueNode x = GraphUtil.unproxify(equals.x());
         ValueNode y = GraphUtil.unproxify(equals.y());
         if (isTrue) {
@@ -757,6 +764,7 @@ public final class State extends MergeableState<State> implements Cloneable {
         if (isDependencyTainted(value, anchor)) {
             return;
         }
+        assert anchor instanceof FixedNode;
         ValueNode original = GraphUtil.unproxify(value);
         boolean wasNull = isNull(original);
         boolean wasNonNull = isNonNull(original);
@@ -783,6 +791,7 @@ public final class State extends MergeableState<State> implements Cloneable {
      * @return true iff `value` may lose dependency not covered by `anchor`.
      */
     public static boolean isDependencyTainted(ValueNode value, GuardingNode anchor) {
+        assert anchor instanceof FixedNode;
         if (value instanceof ValueProxy) {
             if (value instanceof GuardedNode) {
                 GuardedNode gn = (GuardedNode) value;
@@ -808,6 +817,8 @@ public final class State extends MergeableState<State> implements Cloneable {
         isUnreachable = false;
         typeRefinements.clear();
         knownNull.clear();
+        trueFacts.clear();
+        falseFacts.clear();
     }
 
 }
