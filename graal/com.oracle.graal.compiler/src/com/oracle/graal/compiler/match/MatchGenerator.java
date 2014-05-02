@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,17 +20,17 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.compiler.target;
+package com.oracle.graal.compiler.match;
 
-import com.oracle.graal.lir.*;
-import com.oracle.graal.lir.gen.*;
-import com.oracle.graal.nodes.spi.*;
+import com.oracle.graal.compiler.gen.*;
 
 /**
- * An alternative to {@link LIRLowerable} for lowering that is tightly coupled to
- * {@link LIRGenerationResult} and {@link LIRInstruction}.
+ * Code generator for complex match patterns.
  */
-public interface LIRGenResLowerable {
-
-    void generate(NodeLIRBuilderTool generator, LIRGenerationResult genRes);
+public interface MatchGenerator {
+    /**
+     * @returns null if the match can't be generated or a {@link ComplexMatchResult} that can be
+     *          evaluated during LIR generation to produce the final LIR value.
+     */
+    ComplexMatchResult match(NodeLIRBuilder gen);
 }

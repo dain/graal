@@ -151,12 +151,23 @@ public class HSAILHotSpotLIRGenerator extends HSAILLIRGenerator implements HotSp
         return nodeResult;
     }
 
+    @Override
     public Value emitAtomicReadAndAdd(Value address, Value delta) {
         PlatformKind kind = delta.getPlatformKind();
         Kind memKind = getMemoryKind(kind);
         Variable result = newVariable(kind);
         HSAILAddressValue addressValue = asAddressValue(address);
         append(new HSAILMove.AtomicReadAndAddOp(memKind, result, addressValue, asAllocatable(delta)));
+        return result;
+    }
+
+    @Override
+    public Value emitAtomicReadAndWrite(Value address, Value newValue) {
+        PlatformKind kind = newValue.getPlatformKind();
+        Kind memKind = getMemoryKind(kind);
+        Variable result = newVariable(kind);
+        HSAILAddressValue addressValue = asAddressValue(address);
+        append(new HSAILMove.AtomicReadAndWriteOp(memKind, result, addressValue, asAllocatable(newValue)));
         return result;
     }
 
@@ -270,31 +281,8 @@ public class HSAILHotSpotLIRGenerator extends HSAILLIRGenerator implements HotSp
         return result;
     }
 
-    public void emitLeaveCurrentStackFrame() {
-        throw GraalInternalError.unimplemented();
-    }
-
-    public void emitLeaveDeoptimizedStackFrame(Value frameSize, Value initialInfo) {
-        throw GraalInternalError.unimplemented();
-    }
-
-    public void emitEnterUnpackFramesStackFrame(Value framePc, Value senderSp, Value senderFp) {
-        throw GraalInternalError.unimplemented();
-    }
-
-    public void emitLeaveUnpackFramesStackFrame() {
-        throw GraalInternalError.unimplemented();
-    }
-
     public SaveRegistersOp emitSaveAllRegisters() {
         throw GraalInternalError.unimplemented();
     }
 
-    public void emitPushInterpreterFrame(Value frameSize, Value framePc, Value senderSp, Value initialInfo) {
-        throw GraalInternalError.unimplemented();
-    }
-
-    public Value emitUncommonTrapCall(Value trapRequest, SaveRegistersOp saveRegisterOp) {
-        throw GraalInternalError.unimplemented();
-    }
 }

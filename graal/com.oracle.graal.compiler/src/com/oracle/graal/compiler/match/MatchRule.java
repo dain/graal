@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,18 +20,31 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.compiler.target;
+package com.oracle.graal.compiler.match;
 
-import com.oracle.graal.compiler.gen.*;
-import com.oracle.graal.lir.*;
-import com.oracle.graal.lir.gen.*;
-import com.oracle.graal.nodes.spi.*;
+import java.lang.annotation.*;
+
+import com.oracle.graal.nodes.*;
 
 /**
- * An alternative to {@link LIRLowerable} for lowering that is tightly coupled to
- * {@link LIRGenerator} and {@link LIRInstruction}.
+ * This annotation declares a textual pattern for matching an HIR DAG. It's an s-expression with a
+ * node followed by its inputs. Node types are always uppercase and lowercase words are the names of
+ * nodes.
+ *
+ * <pre>
+ *   NAME := [a-z][a-zA-Z0-9]*
+ *   NODETYPE := [A-Z][a-zA-Z0-9]*
+ *   NODEORNAME :=  NODE [ = NAME ] | NAME
+ *   EXPRESSION := ( NODEORNAME [ EXPRESSION | NODEORNAME [ EXPRESSION | NODEORNAME ] )
+ * </pre>
+ *
+ * All matched nodes except the root of the match and {@link ConstantNode}s must have a single user.
+ * All matched nodes must be in the same block.
  */
-public interface LIRGenLowerable {
 
-    void generate(NodeLIRBuilder generator);
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+@Repeatable(value = MatchRules.class)
+public @interface MatchRule {
+    String value();
 }

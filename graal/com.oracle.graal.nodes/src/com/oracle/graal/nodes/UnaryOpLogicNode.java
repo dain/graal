@@ -22,50 +22,30 @@
  */
 package com.oracle.graal.nodes;
 
-import com.oracle.graal.nodes.extended.*;
+import com.oracle.graal.api.meta.ProfilingInfo.TriState;
 import com.oracle.graal.nodes.spi.*;
 
-public abstract class BinaryLogicNode extends LogicNode implements LIRLowerable, MemoryArithmeticLIRLowerable {
+public abstract class UnaryOpLogicNode extends LogicNode implements LIRLowerable {
 
-    @Input private ValueNode x;
-    @Input private ValueNode y;
+    @Input private ValueNode object;
 
-    public ValueNode x() {
-        return x;
+    public ValueNode object() {
+        return object;
     }
 
-    public ValueNode y() {
-        return y;
+    protected void setX(ValueNode object) {
+        updateUsages(this.object, object);
+        this.object = object;
     }
 
-    protected void setX(ValueNode x) {
-        updateUsages(this.x, x);
-        this.x = x;
+    public UnaryOpLogicNode(ValueNode object) {
+        assert object != null;
+        this.object = object;
     }
 
-    protected void setY(ValueNode y) {
-        updateUsages(this.y, y);
-        this.y = y;
-    }
-
-    public BinaryLogicNode(ValueNode x, ValueNode y) {
-        assert x != null && y != null && x.getKind() == y.getKind();
-        this.x = x;
-        this.y = y;
-    }
-
-    @Override
-    public boolean verify() {
-        assertTrue(x.stamp().isCompatible(y.stamp()), "stamps not compatible: %s, %s", x.stamp(), y.stamp());
-        return super.verify();
-    }
+    public abstract TriState evaluate(ValueNode forObject);
 
     @Override
     public void generate(NodeLIRBuilderTool gen) {
-    }
-
-    @Override
-    public boolean generate(MemoryArithmeticLIRLowerer gen, Access access) {
-        return false;
     }
 }

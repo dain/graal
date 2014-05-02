@@ -20,23 +20,17 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.graal.nodes.spi;
+package com.oracle.graal.compiler.match;
 
-import com.oracle.graal.nodes.extended.*;
+import java.lang.annotation.*;
 
 /**
- * Marks nodes which may be lowered in combination with a memory operation.
+ * A list of classes which contain one or more {@link MatchableNode} annotations describing nodes
+ * that may be used in match expressions. Those {@link MatchableNode} declarations are parsed before
+ * processing any {@link MatchRule}s.
  */
-public interface MemoryArithmeticLIRLowerable {
-
-    /**
-     * Attempt to generate a memory form of a node operation. On platforms that support it this will
-     * be called when the merging is safe.
-     * 
-     * @param gen
-     * @param access the memory input which can potentially merge into this operation.
-     * @return null if it's not possible to emit a memory form of this operation. A non-null value
-     *         will be set as the operand of this node.
-     */
-    boolean generate(MemoryArithmeticLIRLowerer gen, Access access);
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface MatchableNodeImport {
+    String[] value() default {};
 }

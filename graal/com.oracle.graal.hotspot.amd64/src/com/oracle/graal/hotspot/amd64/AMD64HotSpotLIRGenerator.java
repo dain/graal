@@ -26,24 +26,29 @@ import static com.oracle.graal.amd64.AMD64.*;
 import static com.oracle.graal.api.code.ValueUtil.*;
 import static com.oracle.graal.hotspot.HotSpotGraalRuntime.*;
 import static com.oracle.graal.hotspot.nodes.UncommonTrapCallNode.*;
+import static com.oracle.graal.lir.LIRInstruction.OperandFlag.*;
 
 import java.util.*;
 
 import com.oracle.graal.amd64.*;
 import com.oracle.graal.api.code.*;
 import com.oracle.graal.api.meta.*;
+import com.oracle.graal.asm.amd64.*;
 import com.oracle.graal.compiler.amd64.*;
 import com.oracle.graal.compiler.common.*;
 import com.oracle.graal.compiler.common.calc.*;
 import com.oracle.graal.hotspot.*;
 import com.oracle.graal.hotspot.HotSpotVMConfig.CompressEncoding;
+import com.oracle.graal.hotspot.data.*;
 import com.oracle.graal.hotspot.meta.*;
+import com.oracle.graal.hotspot.nodes.*;
 import com.oracle.graal.hotspot.nodes.type.*;
 import com.oracle.graal.hotspot.stubs.*;
 import com.oracle.graal.lir.*;
 import com.oracle.graal.lir.StandardOp.NoOp;
 import com.oracle.graal.lir.StandardOp.SaveRegistersOp;
 import com.oracle.graal.lir.amd64.*;
+import com.oracle.graal.lir.amd64.AMD64ControlFlow.BranchOp;
 import com.oracle.graal.lir.amd64.AMD64ControlFlow.CondMoveOp;
 import com.oracle.graal.lir.amd64.AMD64Move.CompareAndSwapOp;
 import com.oracle.graal.lir.amd64.AMD64Move.LeaDataOp;
@@ -52,6 +57,7 @@ import com.oracle.graal.lir.amd64.AMD64Move.MoveFromRegOp;
 import com.oracle.graal.lir.amd64.AMD64Move.MoveToRegOp;
 import com.oracle.graal.lir.amd64.AMD64Move.StoreConstantOp;
 import com.oracle.graal.lir.amd64.AMD64Move.StoreOp;
+import com.oracle.graal.lir.asm.*;
 import com.oracle.graal.lir.gen.*;
 
 /**
@@ -184,8 +190,8 @@ public class AMD64HotSpotLIRGenerator extends AMD64LIRGenerator implements HotSp
         super.emitForeignCall(linkage, result, arguments, temps, info);
     }
 
-    public void emitLeaveCurrentStackFrame() {
-        append(new AMD64HotSpotLeaveCurrentStackFrameOp());
+    public void emitLeaveCurrentStackFrame(SaveRegistersOp saveRegisterOp) {
+        append(new AMD64HotSpotLeaveCurrentStackFrameOp(saveRegisterOp));
     }
 
     public void emitLeaveDeoptimizedStackFrame(Value frameSize, Value initialInfo) {
@@ -194,18 +200,18 @@ public class AMD64HotSpotLIRGenerator extends AMD64LIRGenerator implements HotSp
         append(new AMD64HotSpotLeaveDeoptimizedStackFrameOp(frameSizeVariable, initialInfoVariable));
     }
 
-    public void emitEnterUnpackFramesStackFrame(Value framePc, Value senderSp, Value senderFp) {
-        Register thread = getProviders().getRegisters().getThreadRegister();
+    public void emitEnterUnpackFramesStackFrame(Value framePc, Value senderSp, Value senderFp, SaveRegistersOp saveRegisterOp) {
+        Register threadRegister = getProviders().getRegisters().getThreadRegister();
         Variable framePcVariable = load(framePc);
         Variable senderSpVariable = load(senderSp);
         Variable senderFpVariable = load(senderFp);
-        append(new AMD64HotSpotEnterUnpackFramesStackFrameOp(thread, config.threadLastJavaSpOffset(), config.threadLastJavaPcOffset(), config.threadLastJavaFpOffset(), framePcVariable,
-                        senderSpVariable, senderFpVariable));
+        append(new AMD64HotSpotEnterUnpackFramesStackFrameOp(threadRegister, config.threadLastJavaSpOffset(), config.threadLastJavaPcOffset(), config.threadLastJavaFpOffset(), framePcVariable,
+                        senderSpVariable, senderFpVariable, saveRegisterOp));
     }
 
-    public void emitLeaveUnpackFramesStackFrame() {
-        Register thread = getProviders().getRegisters().getThreadRegister();
-        append(new AMD64HotSpotLeaveUnpackFramesStackFrameOp(thread, config.threadLastJavaSpOffset(), config.threadLastJavaPcOffset(), config.threadLastJavaFpOffset()));
+    public void emitLeaveUnpackFramesStackFrame(SaveRegistersOp saveRegisterOp) {
+        Register threadRegister = getProviders().getRegisters().getThreadRegister();
+        append(new AMD64HotSpotLeaveUnpackFramesStackFrameOp(threadRegister, config.threadLastJavaSpOffset(), config.threadLastJavaPcOffset(), config.threadLastJavaFpOffset(), saveRegisterOp));
     }
 
     /**
@@ -281,7 +287,8 @@ public class AMD64HotSpotLIRGenerator extends AMD64LIRGenerator implements HotSp
             result = super.emitForeignCall(hotspotLinkage, deoptInfo, args);
             append(new AMD64HotSpotCRuntimeCallEpilogueOp(config.threadLastJavaSpOffset(), config.threadLastJavaFpOffset(), thread));
         } else {
-            result = super.emitForeignCall(hotspotLinkage, deoptInfo, args);
+            assert deoptInfo == null;
+            result = super.emitForeignCall(hotspotLinkage, null, args);
         }
 
         if (destroysRegisters) {
@@ -306,6 +313,21 @@ public class AMD64HotSpotLIRGenerator extends AMD64LIRGenerator implements HotSp
         Register thread = getProviders().getRegisters().getThreadRegister();
         append(new AMD64HotSpotCRuntimeCallPrologueOp(config.threadLastJavaSpOffset(), thread));
         Variable result = super.emitForeignCall(linkage, null, thread.asValue(Kind.Long), trapRequest);
+        append(new AMD64HotSpotCRuntimeCallEpilogueOp(config.threadLastJavaSpOffset(), config.threadLastJavaFpOffset(), thread));
+
+        Map<LIRFrameState, SaveRegistersOp> calleeSaveInfo = ((AMD64HotSpotLIRGenerationResult) getResult()).getCalleeSaveInfo();
+        assert !calleeSaveInfo.containsKey(currentRuntimeCallInfo);
+        calleeSaveInfo.put(currentRuntimeCallInfo, saveRegisterOp);
+
+        return result;
+    }
+
+    public Value emitDeoptimizationFetchUnrollInfoCall(SaveRegistersOp saveRegisterOp) {
+        ForeignCallLinkage linkage = getForeignCalls().lookupForeignCall(DeoptimizationFetchUnrollInfoCallNode.FETCH_UNROLL_INFO);
+
+        Register thread = getProviders().getRegisters().getThreadRegister();
+        append(new AMD64HotSpotCRuntimeCallPrologueOp(config.threadLastJavaSpOffset(), thread));
+        Variable result = super.emitForeignCall(linkage, null, thread.asValue(Kind.Long));
         append(new AMD64HotSpotCRuntimeCallEpilogueOp(config.threadLastJavaSpOffset(), config.threadLastJavaFpOffset(), thread));
 
         Map<LIRFrameState, SaveRegistersOp> calleeSaveInfo = ((AMD64HotSpotLIRGenerationResult) getResult()).getCalleeSaveInfo();
@@ -542,6 +564,14 @@ public class AMD64HotSpotLIRGenerator extends AMD64LIRGenerator implements HotSp
         return result;
     }
 
+    public static Register asNarrowReg(Value value) {
+        if (value.getPlatformKind() != NarrowOopStamp.NarrowOop) {
+            throw new InternalError("needed NarrowOop got: " + value.getKind());
+        } else {
+            return asRegister(value);
+        }
+    }
+
     public Value emitAtomicReadAndWrite(Value address, Value newValue) {
         PlatformKind kind = newValue.getPlatformKind();
         Kind memKind = getMemoryKind(kind);
@@ -551,4 +581,59 @@ public class AMD64HotSpotLIRGenerator extends AMD64LIRGenerator implements HotSp
         return result;
     }
 
+    public static class CompareMemoryCompressedOp extends AMD64LIRInstruction {
+        @Alive({COMPOSITE}) protected AMD64AddressValue x;
+        @Use({CONST, REG}) protected Value y;
+        @State protected LIRFrameState state;
+
+        public CompareMemoryCompressedOp(AMD64AddressValue x, Value y, LIRFrameState state) {
+            assert HotSpotGraalRuntime.runtime().getConfig().useCompressedOops;
+            this.x = x;
+            this.y = y;
+            this.state = state;
+        }
+
+        @Override
+        protected void verify() {
+            assert y instanceof Constant || y.getPlatformKind() == NarrowOopStamp.NarrowOop;
+        }
+
+        @Override
+        public void emitCode(CompilationResultBuilder crb, AMD64MacroAssembler masm) {
+            if (state != null) {
+                crb.recordImplicitException(masm.position(), state);
+            }
+            if (y instanceof Constant) {
+                Constant constant = (Constant) y;
+                if (constant.isNull()) {
+                    masm.cmpl(x.toAddress(), 0);
+                } else {
+                    if (y.getKind() == Kind.Object) {
+                        crb.recordInlineDataInCode(new OopData(0, HotSpotObjectConstant.asObject(constant), true));
+                    } else if (y.getKind() == Kind.Long) {
+                        crb.recordInlineDataInCode(new MetaspaceData(0, constant.asLong(), HotSpotMetaspaceConstant.getMetaspaceObject(constant), true));
+                    } else {
+                        throw GraalInternalError.shouldNotReachHere();
+                    }
+                    masm.cmpl(x.toAddress(), 0xdeaddead);
+                }
+            } else {
+                masm.cmpl(asNarrowReg(y), x.toAddress());
+            }
+        }
+    }
+
+    protected void emitCompareBranchMemoryCompressed(Value left, Value right, Condition cond, LabelRef trueLabel, LabelRef falseLabel, double trueLabelProbability, LIRFrameState state) {
+        boolean mirrored = false;
+        if (left instanceof AMD64AddressValue) {
+            append(new CompareMemoryCompressedOp((AMD64AddressValue) left, right, state));
+        } else {
+            assert right instanceof AMD64AddressValue;
+            append(new CompareMemoryCompressedOp((AMD64AddressValue) right, left, state));
+            mirrored = true;
+        }
+
+        Condition finalCondition = mirrored ? cond.mirror() : cond;
+        append(new BranchOp(finalCondition, trueLabel, falseLabel, trueLabelProbability));
+    }
 }
