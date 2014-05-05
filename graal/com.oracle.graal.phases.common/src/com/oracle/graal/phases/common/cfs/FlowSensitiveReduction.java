@@ -232,13 +232,8 @@ public class FlowSensitiveReduction extends FixedGuardReduction {
                 // `begin` denotes the default case of the TypeSwitchNode
                 return;
             }
-            if (state.knownNotToConform(loadHub.object(), type)) {
-                postponedDeopts.addDeoptAfter(begin, UnreachedCode);
-                state.impossiblePath();
-                return;
-            }
             // it's unwarranted to assume loadHub.object() to be non-null
-            // it also seems unwarranted state.trackCC(loadHub.object(), type, begin);
+            state.trackCC(loadHub.object(), type, begin);
         }
     }
 
@@ -310,9 +305,16 @@ public class FlowSensitiveReduction extends FixedGuardReduction {
      *
      */
     private MethodCallTargetNode deverbosifyInputsCopyOnWrite(MethodCallTargetNode parent) {
+        final MethodCallTargetNode.InvokeKind ik = parent.invokeKind();
+        final boolean shouldTryDevirt = (ik == MethodCallTargetNode.InvokeKind.Interface || ik == MethodCallTargetNode.InvokeKind.Virtual);
+        boolean shouldDowncastReceiver = shouldTryDevirt;
         MethodCallTargetNode changed = null;
         for (ValueNode i : FlowUtil.distinctValueAndConditionInputs(parent)) {
-            Node j = reasoner.deverbosify(i);
+            ValueNode j = (ValueNode) reasoner.deverbosify(i);
+            if (shouldDowncastReceiver) {
+                shouldDowncastReceiver = false;
+                j = reasoner.downcast(j);
+            }
             if (i != j) {
                 assert j != parent;
                 if (changed == null) {

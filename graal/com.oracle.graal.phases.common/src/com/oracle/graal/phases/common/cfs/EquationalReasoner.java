@@ -237,6 +237,17 @@ public final class EquationalReasoner {
             // picked cached substitution
             return result;
         }
+        if (FlowUtil.hasLegalObjectStamp(v) && state.isNull(v)) {
+            // it's ok to return nullConstant in deverbosify unlike in downcast
+            metricNullInserted.increment();
+            return nullConstant;
+        }
+        if (v instanceof ValueProxy) {
+            return v;
+        }
+        if (!(n instanceof FloatingNode)) {
+            return n;
+        }
         if ((visited != null && visited.contains(n)) || added.contains(v)) {
             return v;
         }
@@ -254,30 +265,13 @@ public final class EquationalReasoner {
          * Past this point, if we ever want `n` to be deverbosified, it must be looked-up by one of
          * the cases above. One sure way to achieve that is with `rememberSubstitution(old, new)`
          */
-        if (v instanceof ValueProxy) {
-            return downcast(v);
-        }
 
-        if (n instanceof FloatingNode) {
-            /*
-             * `deverbosifyFloatingNode()` will drill down over floating inputs, when that not
-             * possible anymore it resorts to calling `downcast()`. Thus it's ok to take the
-             * `deverbosifyFloatingNode()` route first, as no downcasting opportunity will be
-             * missed.
-             */
-            return deverbosifyFloatingNode((FloatingNode) n);
-        }
-
-        if (FlowUtil.hasLegalObjectStamp(v)) {
-            if (state.isNull(v)) {
-                // it's ok to return nullConstant in deverbosify unlike in downcast
-                metricNullInserted.increment();
-                return nullConstant;
-            }
-            return downcast(v);
-        }
-
-        return n;
+        /*
+         * `deverbosifyFloatingNode()` will drill down over floating inputs, when that not possible
+         * anymore it resorts to calling `downcast()`. Thus it's ok to take the
+         * `deverbosifyFloatingNode()` route first, as no downcasting opportunity will be missed.
+         */
+        return deverbosifyFloatingNode((FloatingNode) n);
     }
 
     /**
@@ -341,16 +335,7 @@ public final class EquationalReasoner {
         }
         if (changed == null) {
             assert visited.contains(f) || added.contains(f);
-            if (FlowUtil.hasLegalObjectStamp(f)) {
-                /*
-                 * No input has changed doesn't imply there's no witness to refine the
-                 * floating-object value.
-                 */
-                ValueNode d = downcast(f);
-                return d;
-            } else {
-                return f;
-            }
+            return f;
         }
         FlowUtil.inferStampAndCheck(changed);
         added.add(changed);
@@ -474,6 +459,11 @@ public final class EquationalReasoner {
         if (state.isNull(scrutinee)) {
             metricInstanceOfRemoved.increment();
             return falseConstant;
+        } else if (state.knownNotToPassInstanceOf(scrutinee, instanceOf.type())) {
+            // scrutinee turns out to be null -> falseConstant right answer
+            // scrutinee not null, but known-not-to-conform -> falseConstant
+            metricInstanceOfRemoved.increment();
+            return falseConstant;
         } else if (state.isNonNull(scrutinee) && state.knownToConform(scrutinee, instanceOf.type())) {
             metricInstanceOfRemoved.increment();
             return trueConstant;
@@ -486,21 +476,19 @@ public final class EquationalReasoner {
      *         performed; otherwise the unmodified argument.
      *
      */
-    private FloatingNode baseCaseIsNullNode(IsNullNode isNull) {
-        ValueNode object = isNull.object();
+    private FloatingNode baseCaseIsNullNode(IsNullNode isNu) {
+        ValueNode object = isNu.object();
         if (!FlowUtil.hasLegalObjectStamp(object)) {
-            return isNull;
+            return isNu;
         }
-        ValueNode scrutinee = GraphUtil.unproxify(isNull.object());
-        GuardingNode evidence = state.nonTrivialNullAnchor(scrutinee);
-        if (evidence != null) {
+        if (state.isNull(object)) {
             metricNullCheckRemoved.increment();
             return trueConstant;
-        } else if (state.isNonNull(scrutinee)) {
+        } else if (state.isNonNull(object)) {
             metricNullCheckRemoved.increment();
             return falseConstant;
         }
-        return isNull;
+        return isNu;
     }
 
     /**
@@ -547,7 +535,7 @@ public final class EquationalReasoner {
         if (cast != null) {
             if (state.knownToConform(cast.subject, cast.type)) {
                 return trueConstant;
-            } else if (state.knownNotToConform(cast.subject, cast.type)) {
+            } else if (state.knownNotToPassCheckCast(cast.subject, cast.type)) {
                 return falseConstant;
             }
             return orNode;
