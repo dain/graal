@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -20,50 +20,35 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-
 package com.oracle.graal.compiler.hsail.test.lambda;
 
-import com.oracle.graal.compiler.hsail.test.infra.GraalKernelTester;
-import org.junit.Test;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.Arrays;
+import com.oracle.graal.compiler.hsail.test.infra.*;
+
+import org.junit.*;
 
 /**
- * Tests {@link AtomicLong#getAndAdd(long)} with the delta being a constant.
+ * Tests copying a int array where src and dest do not overlap.
  */
-public class AtomicLongGetAndAddTest extends GraalKernelTester {
+public class IntArrayCopyDisjointTest extends GraalKernelTester {
 
-    static final int NUM = 20;
-    @Result public long[] outArray = new long[NUM];
-    AtomicLong atomicLong = new AtomicLong();
+    final static int MAXOUTSIZ = 100;
+    final static int NUM = 20;
 
-    void setupArrays() {
-        for (int i = 0; i < NUM; i++) {
-            outArray[i] = -i;
-        }
-    }
+    @Result int[][] outArray = new int[NUM][MAXOUTSIZ];
+    int[] inArray = new int[NUM + MAXOUTSIZ];
 
     @Override
     public void runTest() {
-        setupArrays();
-
+        for (int i = 0; i < inArray.length; i++) {
+            inArray[i] = i;
+        }
         dispatchLambdaKernel(NUM, (gid) -> {
-            outArray[gid] = atomicLong.getAndAdd(0x7);
+            System.arraycopy(inArray, gid, outArray[gid], 0, MAXOUTSIZ);
         });
-
-        // note: the actual order of entries in outArray is not predictable
-        // thus we sort before we compare results
-        Arrays.sort(outArray);
-    }
-
-    @Test
-    public void test() {
-        testGeneratedHsail();
     }
 
     @Test
     public void testUsingLambdaMethod() {
         testGeneratedHsailUsingLambdaMethod();
     }
-
 }
